@@ -8,3 +8,4 @@
 local
 logs
 venv
+__pycache__
