@@ -5,7 +5,7 @@ import sys
 
 from optparse import OptionParser
 from pysolo_config import Config
-from pysolo_video import MovieFile
+from pysolo_video import MovieFile, Arena, process_next_frame
 
 
 def track(image_source, input_mask_file, output_result_file, tracking_type=1):
@@ -26,6 +26,10 @@ def main():
     parser = OptionParser(usage='%prog [options] [argument]', version='%prog version 1.0')
     parser.add_option('-c', '--config', dest='config_file', metavar='CONFIG_FILE', help='The full path to the config file to open')
     parser.add_option('-l', '--log-config', default='logger.conf', dest='log_config_file', metavar='LOG_CONFIG_FILE', help='The full path to the log config file to open')
+    parser.add_option('--start-frame', default=-1, type=int, dest='start_frame', help='Start frame')
+    parser.add_option('--frame-step', default=1, type=int, dest='frame_step', help='Frame step')
+    parser.add_option('--video-file', dest='video_file', help='Video file')
+    parser.add_option('--mask', dest='mask_file', help='Mask file')
 
     (options, args) = parser.parse_args()
 
@@ -42,8 +46,13 @@ def main():
     config.load_config(options.config_file)
     print("!!!!", config._get_value("Foo", 'bar'), config.get_monitors(), config.get_monitors().get(0).get('source'))
 
-    trackerSource = MovieFile(config.get_monitors().get(0).get('source'))
-
+    image_source = MovieFile(config.get_monitors().get(0).get('source'), start=options.start_frame, step=options.frame_step)
+    image_arena = Arena()
+    image_arena.load_rois(config.get_monitors().get(0).get('mask_file'))
+    while True:
+        res = process_next_frame(image_source, image_arena)
+        if not res:
+            break
 
 
 if __name__ == '__main__':
