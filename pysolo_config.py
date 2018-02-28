@@ -54,7 +54,7 @@ class Config:
         val = self._config.get(section, key)
         return _convert_val(val)
 
-    def _get_option(self, key):
+    def get_option(self, key):
         return self._get_value('Options', key)
 
     def _get_monitor_section(self, monitor_index):
@@ -71,9 +71,9 @@ class Config:
     def get_monitors(self):
         monitors = {}
 
-        n_monitors = self._get_option('monitors')
-        image_size = self._get_option('fullsize')
-        data_folder = self._get_option('data_folder')
+        n_monitors = self.get_option('monitors')
+        image_size = self.get_option('fullsize')
+        data_folder = self.get_option('data_folder')
 
         for mon in range(0, n_monitors):
             monitor_section = self._get_monitor_section(mon)
