@@ -211,7 +211,6 @@ class MovieFile(ImageSource):
 def process_image_frames(image_source, arena, moving_alpha=0.2):
     previous_frame = None
     moving_average = None
-    roiMsk = np.zeros(image_source.get_size(), np.uint8)
 
     while True:
         next_frame_res = image_source.get_image()
@@ -243,16 +242,10 @@ def process_image_frames(image_source, arena, moving_alpha=0.2):
 
         cv2.imwrite("flyblobs-%d.jpg" % next_frame_res[1], binary_image)
 
-        prev_roi = None
         for roi_index, roi in enumerate(arena.ROIS):
             current_roi = np.array(arena.roi_to_poly(roi, image_source.get_scale()))
-            clearRoi(binary_image, roiMsk, prev_roi)
-            setRoi(binary_image, roiMsk, current_roi)
+            process_roi(binary_image, next_frame_res[1], current_roi, roi_index)
 
-            prev_roi = current_roi
-            process_roi(binary_image, roiMsk, next_frame_res[1], roi_index)
-
-        clearRoi(binary_image, roiMsk, prev_roi) # clear the mask after all ROIs were processed
         previous_frame = grey_image
 
     return True
@@ -263,13 +256,10 @@ def setRoi(image, roiMsk, roi):
     cv2.polylines(image, [roi], isClosed=True, color=[255, 255, 255])
 
 
-def clearRoi(image, roiMsk, roi):
-    if roi is not None:
-        cv2.fillPoly(roiMsk, [roi], color=[0, 0, 0])
-        cv2.polylines(image, [roi], isClosed=True, color=[0, 0, 0])
+def process_roi(image, image_index, roi, roi_index):
+    roiMsk = np.zeros(image.shape, np.uint8)
+    setRoi(image, roiMsk, roi)
 
-
-def process_roi(image, roiMsk, image_index, roi_index):
     image_roi = cv2.bitwise_and(image, image, mask=roiMsk)
     cv2.imwrite("masked-%d-%d.jpg" % (image_index, roi_index), image_roi)
     fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
