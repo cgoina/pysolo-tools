@@ -3,7 +3,7 @@
 import sys
 
 from optparse import OptionParser
-from pysolo_video import Arena
+from pysolo_video import MonitorArea
 
 
 def main():
@@ -77,7 +77,7 @@ def main():
     y_sep = coord_params['y_sep']
     y_tilt = coord_params['y_tilt']
 
-    arena = Arena()
+    arena = MonitorArea()
     for col in range(0, columns):  # x-coordinates change through columns
         ay = y1 + col * y_tilt  # reset y-coordinate start of col
         by = ay + y_len

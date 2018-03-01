@@ -2,7 +2,7 @@ import cv2
 import _pickle as cPickle
 import numpy as np
 
-class Arena():
+class MonitorArea():
     """
     The arena defines the space where the flies move
     Carries information about the ROI (coordinates defining each vial) and
@@ -208,7 +208,7 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
-def process_image_frames(image_source, arena, moving_alpha=0.2):
+def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
     previous_frame = None
     moving_average = None
 
@@ -242,9 +242,9 @@ def process_image_frames(image_source, arena, moving_alpha=0.2):
 
         cv2.imwrite("flyblobs-%d.jpg" % next_frame_res[1], binary_image)
 
-        for roi_index, roi in enumerate(arena.ROIS):
-            current_roi = np.array(arena.roi_to_poly(roi, image_source.get_scale()))
-            process_roi(binary_image, next_frame_res[1], current_roi, roi_index)
+        for area_index, monitor_area in enumerate(monitor_areas):
+            for roi_index, roi in enumerate(monitor_area.ROIS):
+                process_roi(binary_image, next_frame_res[1], monitor_area, roi, '%d-%d' % (area_index, roi_index), image_source.get_scale())
 
         previous_frame = grey_image
 
@@ -256,12 +256,12 @@ def setRoi(image, roiMsk, roi):
     cv2.polylines(image, [roi], isClosed=True, color=[255, 255, 255])
 
 
-def process_roi(image, image_index, roi, roi_index):
+def process_roi(image, image_index, monitor_area, roi, roi_id, scalef):
     roiMsk = np.zeros(image.shape, np.uint8)
-    setRoi(image, roiMsk, roi)
+    setRoi(image, roiMsk, np.array(monitor_area.roi_to_poly(roi, scalef)))
 
     image_roi = cv2.bitwise_and(image, image, mask=roiMsk)
-    cv2.imwrite("masked-%d-%d.jpg" % (image_index, roi_index), image_roi)
+    cv2.imwrite("masked-%d-%s.jpg" % (image_index, roi_id), image_roi)
     fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
     fly_coords = None

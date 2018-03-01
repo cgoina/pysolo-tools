@@ -5,7 +5,7 @@ import sys
 
 from optparse import OptionParser
 from pysolo_config import Config
-from pysolo_video import MovieFile, Arena, process_image_frames
+from pysolo_video import MovieFile, MonitorArea, process_image_frames
 
 
 def track(image_source, input_mask_file, output_result_file, tracking_type=1):
@@ -48,10 +48,12 @@ def main():
 
     image_source = MovieFile(config.get_monitors().get(0).get('source'),
                              start=options.start_frame, step=options.frame_step, resolution=config.get_option('fullsize'))
-    image_arena = Arena()
-    image_arena.load_rois(config.get_monitors().get(1).get('mask_file'))
+    def create_monitor_area(monitor_index):
+        monitor_area = MonitorArea()
+        monitor_area.load_rois(config.get_monitors().get(monitor_index).get('mask_file'))
+        return monitor_area
 
-    process_image_frames(image_source, image_arena)
+    process_image_frames(image_source, [create_monitor_area(i) for i in [0, 1, 2]])
 
     image_source.close()
 
