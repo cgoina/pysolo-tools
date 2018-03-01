@@ -1,19 +1,20 @@
-#!venv/bin/python
+#!/usr/bin/env python
 
 import sys
 
-from optparse import OptionParser
+from argparse import ArgumentParser
 from pysolo_video import MonitorArea
 
 
 def main():
-    parser = OptionParser(usage='%prog [options] [argument]', version='%prog version 1.0')
-    parser.add_option('-m', '--mask-file', dest='mask_file', metavar='MASK_FILE', help='The full name of the mask file')
-    parser.add_option('-r', '--region', dest='region', type='choice',
-                      choices=['upper_left', 'lower_left', 'upper_right', 'lower_right'],
-                      help='The name of the region for which to generate the mask')
+    parser = ArgumentParser(usage='prog [options]')
+    parser.add_argument('-m', '--mask-file', dest='mask_file', metavar='MASK_FILE',
+                        help='The full name of the mask file')
+    parser.add_argument('-r', '--region', dest='region',
+                        choices=['upper_left', 'lower_left', 'upper_right', 'lower_right'],
+                        help='The name of the region for which to generate the mask')
 
-    (options, args) = parser.parse_args()
+    args = parser.parse_args()
 
     rows = 1
     columns = 14
@@ -65,7 +66,7 @@ def main():
         }
     }
 
-    coord_params = coordinate_params[options.region]
+    coord_params = coordinate_params[args.region]
 
     x1 = coord_params['x1']
     x_span = coord_params['x_span']

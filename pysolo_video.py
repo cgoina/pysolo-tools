@@ -1,6 +1,12 @@
 import cv2
-import _pickle as cPickle
+import logging
 import numpy as np
+import _pickle as cPickle
+
+from os import makedirs
+from os.path import dirname
+
+_logger = logging.getLogger('tracker')
 
 class MonitorArea():
     """
@@ -27,6 +33,10 @@ class MonitorArea():
         self._fly_period_end_coords = np.zeros((1, self._frames_per_period, 2), dtype=np.int)
         self._first_position = (0, 0)
 
+    def set_output(self, filename):
+        self.output_filename = filename
+        if self.output_filename:
+            makedirs(dirname(self.output_filename), exist_ok=True)
 
     def add_fly_coords(self, fly_index, coords):
         """
@@ -43,7 +53,7 @@ class MonitorArea():
         is_first_movement = (previous_position == self._first_position)
         fly_coords = coords or previous_position  # coords is None if no blob was detected
 
-        distance = self.__distance(previous_position, fly_coords)
+        distance = self._distance(previous_position, fly_coords)
         if (distance > max_movement and not is_first_movement) or (distance < min_movement):
             fly_coords = previous_position
 
@@ -136,6 +146,13 @@ class MonitorArea():
         for roi in self.ROIS:
             self._beams.append(self._get_midline(roi))
 
+    def write_activity(self):
+
+        if self.output_filename:
+            print("!!!!!!!!!!!!!!! WRITE TO ", self.output_filename)
+            with open(self.output_filename, 'a') as ofh:
+                ofh.write("!!!!!!")
+
 
 class ImageSource():
 
@@ -153,6 +170,9 @@ class ImageSource():
         return self._size
 
     def get_image(self):
+        pass
+
+    def get_frame_time(self):
         pass
 
     def close(self):
@@ -204,6 +224,10 @@ class MovieFile(ImageSource):
         else:
             return False
 
+    def get_frame_time(self):
+        frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
+        return frame_time_in_millis / 1000 # return the time in seconds
+
     def close(self):
         self._capture.release()
 
@@ -211,11 +235,14 @@ class MovieFile(ImageSource):
 def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
     previous_frame = None
     moving_average = None
+    last_time_pos_processed = None
 
     while True:
+        frame_time_pos = image_source.get_frame_time()
         next_frame_res = image_source.get_image()
         if not next_frame_res[0]:
             return
+        _logger.info('Process frame %d(frame time: %rs)' % (next_frame_res[1], frame_time_pos))
         frame_image = next_frame_res[2]
 
         # smooth the image to get rid of false positives
@@ -244,7 +271,12 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
 
         for area_index, monitor_area in enumerate(monitor_areas):
             for roi_index, roi in enumerate(monitor_area.ROIS):
-                process_roi(binary_image, next_frame_res[1], monitor_area, roi, '%d-%d' % (area_index, roi_index), image_source.get_scale())
+                process_roi(binary_image, next_frame_res[1], monitor_area, roi, area_index, roi_index, image_source.get_scale())
+
+        if last_time_pos_processed is None or frame_time_pos - last_time_pos_processed >= 1:
+            last_time_pos_processed = frame_time_pos
+            for monitor_area in monitor_areas:
+                monitor_area.write_activity()
 
         previous_frame = grey_image
 
@@ -256,12 +288,12 @@ def setRoi(image, roiMsk, roi):
     cv2.polylines(image, [roi], isClosed=True, color=[255, 255, 255])
 
 
-def process_roi(image, image_index, monitor_area, roi, roi_id, scalef):
+def process_roi(image, image_index, monitor_area, roi, monitor_area_index, roi_index, scalef):
     roiMsk = np.zeros(image.shape, np.uint8)
     setRoi(image, roiMsk, np.array(monitor_area.roi_to_poly(roi, scalef)))
 
     image_roi = cv2.bitwise_and(image, image, mask=roiMsk)
-    cv2.imwrite("masked-%d-%s.jpg" % (image_index, roi_id), image_roi)
+    cv2.imwrite("masked-%d-%d-%d.jpg" % (image_index, monitor_area_index, roi_index), image_roi)
     fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
     fly_coords = None
@@ -276,3 +308,5 @@ def process_roi(image, image_index, monitor_area, roi, roi_id, scalef):
         area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
         if area > 400:
             fly_coords = None
+
+    return monitor_area.add_fly_coords(roi_index, fly_coords)

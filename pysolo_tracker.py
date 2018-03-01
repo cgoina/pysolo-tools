@@ -1,9 +1,10 @@
-#!venv/bin/python
+#!/usr/bin/env python
 
 import logging.config
+import os
 import sys
 
-from optparse import OptionParser
+from argparse import ArgumentParser
 from pysolo_config import Config
 from pysolo_video import MovieFile, MonitorArea, process_image_frames
 
@@ -23,37 +24,43 @@ def track(image_source, input_mask_file, output_result_file, tracking_type=1):
 def main():
     global _logger
 
-    parser = OptionParser(usage='%prog [options] [argument]', version='%prog version 1.0')
-    parser.add_option('-c', '--config', dest='config_file', metavar='CONFIG_FILE', help='The full path to the config file to open')
-    parser.add_option('-l', '--log-config', default='logger.conf', dest='log_config_file', metavar='LOG_CONFIG_FILE', help='The full path to the log config file to open')
-    parser.add_option('--start-frame', default=-1, type=int, dest='start_frame', help='Start frame')
-    parser.add_option('--frame-step', default=1, type=int, dest='frame_step', help='Frame step')
-    parser.add_option('--video-file', dest='video_file', help='Video file')
-    parser.add_option('--mask', dest='mask_file', help='Mask file')
+    parser = ArgumentParser(usage='prog [options]')
+    parser.add_argument('-c', '--config', dest='config_file', metavar='CONFIG_FILE', help='The full path to the config file to open')
+    parser.add_argument('-l', '--log-config', default='logger.conf', dest='log_config_file', metavar='LOG_CONFIG_FILE', help='The full path to the log config file to open')
+    parser.add_argument('--start-frame', default=-1, type=int, dest='start_frame', help='Start frame')
+    parser.add_argument('--frame-step', default=1, type=int, dest='frame_step', help='Frame step')
+    parser.add_argument('--video-file', dest='video_file', help='Video file')
+    parser.add_argument('--mask', dest='mask_file', help='Mask file')
 
-    (options, args) = parser.parse_args()
+    args = parser.parse_args()
 
     # setup logger
-    logging.config.fileConfig(options.log_config_file)
+    logging.config.fileConfig(args.log_config_file)
     _logger = logging.getLogger('tracker')
 
-    if options.config_file is None:
+    if args.config_file is None:
         _logger.warning('Missing config file')
         parser.exit(1, 'Missing config file\n')
 
     # load config file
     config = Config()
-    config.load_config(options.config_file)
-    print("!!!!", config._get_value("Foo", 'bar'), config.get_monitors(), config.get_monitors().get(0).get('source'))
+    config.load_config(args.config_file)
+
 
     image_source = MovieFile(config.get_monitors().get(0).get('source'),
-                             start=options.start_frame, step=options.frame_step, resolution=config.get_option('fullsize'))
+                             start=args.start_frame,
+                             step=args.frame_step,
+                             resolution=config.get_option('fullsize'))
+
     def create_monitor_area(monitor_index):
         monitor_area = MonitorArea()
         monitor_area.load_rois(config.get_monitors().get(monitor_index).get('mask_file'))
+        monitor_area.set_output(
+            os.path.join(config.get_monitors().get(monitor_index).get('dataFolder'), 'Monitor%02d.txt' % monitor_index)
+        )
         return monitor_area
 
-    process_image_frames(image_source, [create_monitor_area(i) for i in [0, 1, 2]])
+    process_image_frames(image_source, [create_monitor_area(i) for i in [0, 1, 2, 3]])
 
     image_source.close()
 
