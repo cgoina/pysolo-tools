@@ -11,6 +11,7 @@ def main():
     parser.add_argument('-m', '--mask-file', dest='mask_file', metavar='MASK_FILE',
                         help='The full name of the mask file')
     parser.add_argument('-r', '--region', dest='region',
+                        required=True,
                         choices=['upper_left', 'lower_left', 'upper_right', 'lower_right'],
                         help='The name of the region for which to generate the mask')
 
@@ -109,7 +110,7 @@ def main():
             cx = ax + x_span
             dx = cx
 
-    arena.save_rois(options.mask_file)
+    arena.save_rois(args.mask_file)
 
 
 if __name__ == '__main__':

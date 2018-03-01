@@ -25,7 +25,7 @@ def _convert_simple_val(val):
 
 
 class Config:
-    _monitor_properties = ['sourceType', 'source', 'track', 'maskfile', 'trackType', 'isSDMonitor']
+    _monitor_properties = ['track', 'maskfile', 'trackType', 'isSDMonitor']
 
     def __init__(self):
         self._config_filename = None
@@ -80,11 +80,9 @@ class Config:
             if self._config.has_section(monitor_section):
                 monitor_data = self._get_monitor_data(mon)
                 monitors[mon] = {}
-                monitors[mon]['source'] = monitor_data.get('source')
                 monitors[mon]['resolution'] = image_size
                 monitors[mon]['mask_file'] = monitor_data.get('maskfile')
                 monitors[mon]['track_type'] = monitor_data.get('trackType')
-                monitors[mon]['dataFolder'] = data_folder
                 monitors[mon]['track'] = monitor_data.get('track')
                 monitors[mon]['isSDMonitor'] = monitor_data.get('isSDMonitor')
 
