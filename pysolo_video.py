@@ -208,13 +208,10 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
-def process_image_frames(image_source, arena, moving_alpha=0.05):
+def process_image_frames(image_source, arena, moving_alpha=0.2):
     previous_frame = None
     moving_average = None
     roiMsk = np.zeros(image_source.get_size(), np.uint8)
-
-    for roi in arena.ROIS:
-        cv2.fillPoly(roiMsk, [np.array(arena.roi_to_poly(roi, image_source.get_scale()))], color=[255,255,255])
 
     while True:
         next_frame_res = image_source.get_image()
@@ -235,64 +232,57 @@ def process_image_frames(image_source, arena, moving_alpha=0.05):
 
         cv2.imwrite("moving-%d.jpg" % next_frame_res[1], temp_frame)
 
-        frame_delta = cv2.absdiff(frame_image, temp_frame)
-        grey_image = cv2.cvtColor(frame_delta, cv2.COLOR_BGR2GRAY)
-        cv2.imwrite("grey-%d.jpg" % next_frame_res[1], grey_image)
+        background_diff = cv2.absdiff(frame_image, temp_frame) # subtract the background
+        grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
 
-        thresh = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
-        thresh = cv2.dilate(thresh, None, iterations=2)
-        thresh = cv2.erode(thresh, None, iterations=2)
+        cv2.imwrite("foreground-%d.jpg" % next_frame_res[1], grey_image)
 
+        binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
+        binary_image = cv2.dilate(binary_image, None, iterations=2)
+        binary_image = cv2.erode(binary_image, None, iterations=2)
 
+        cv2.imwrite("flyblobs-%d.jpg" % next_frame_res[1], binary_image)
 
-        cv2.imwrite("thresh%d.jpg" % next_frame_res[1], thresh)
+        prev_roi = None
+        for roi_index, roi in enumerate(arena.ROIS):
+            current_roi = np.array(arena.roi_to_poly(roi, image_source.get_scale()))
+            clearRoi(binary_image, roiMsk, prev_roi)
+            setRoi(binary_image, roiMsk, current_roi)
 
-        thresh_rois = cv2.bitwise_and(thresh, thresh, mask=roiMsk)
-        cv2.imwrite("masked_%d.jpg" % next_frame_res[1], thresh_rois)
+            prev_roi = current_roi
+            process_roi(binary_image, roiMsk, next_frame_res[1], roi_index)
 
-        cnts = cv2.findContours(thresh_rois.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-        # cv2.imwrite("cnts_0_%d.jpg" % next_frame_res[1], cnts[0])
-
-        # print("!!!! CNTS", cnts[1])
-        for roi in arena.ROIS:
-            # cv2.fillPoly(cnts[0], [np.array(arena.roi_to_poly(roi, image_source.get_scale()))], color=[255,255,255])
-            cv2.polylines(cnts[0], [np.array(arena.roi_to_poly(roi, image_source.get_scale()))], isClosed=True, color=[255, 255, 255])
-
-        cv2.imwrite("cnts_1_%d.jpg" % next_frame_res[1], cnts[0])
-
-        fly_coords = None
-        points = []
-        for contour in cnts[1]:
-            bound_rect = cv2.boundingRect(contour)
-            pt1 = (bound_rect[0], bound_rect[1])
-            pt2 = (bound_rect[0] + bound_rect[2], bound_rect[1] + bound_rect[3])
-            points.append(pt1);
-            points.append(pt2)
-            cv2.rectangle(frame_image, pt1, pt2, [255, 0, 0], 1)
-            fly_coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
-            area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
-            if area > 400:
-                fly_coords = None
-
-
-        cv2.imwrite("frame_%d.jpg" % next_frame_res[1], frame_image)
-
+        clearRoi(binary_image, roiMsk, prev_roi) # clear the mask after all ROIs were processed
         previous_frame = grey_image
 
-    # temp = frame_image.copy()
-    # difference = frame_image.copy()
-    # roiMsk = grey_image.copy()
-    # roiWrk = grey_image.copy()
-    #
-    # print("!!! SHAPE", grey_image.shape, temp.shape)
-    #
-    # if first_frame:
-    #     moving_average = cv2.cvtColor(frame_image, cv2.COLOR_BGR2GRAY)
-    #     tt = cv.CreateImage(cv.GetSize(frame_image), cv2.IPL_DEPTH_32F, 3)
-    #     print("!!!!", tt)
-
-
-
-    #!!!!!! cv2.imshow('window-name',next_frame_res[2])
-
     return True
+
+
+def setRoi(image, roiMsk, roi):
+    cv2.fillPoly(roiMsk, [roi], color=[255, 255, 255])
+    cv2.polylines(image, [roi], isClosed=True, color=[255, 255, 255])
+
+
+def clearRoi(image, roiMsk, roi):
+    if roi is not None:
+        cv2.fillPoly(roiMsk, [roi], color=[0, 0, 0])
+        cv2.polylines(image, [roi], isClosed=True, color=[0, 0, 0])
+
+
+def process_roi(image, roiMsk, image_index, roi_index):
+    image_roi = cv2.bitwise_and(image, image, mask=roiMsk)
+    cv2.imwrite("masked-%d-%d.jpg" % (image_index, roi_index), image_roi)
+    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+    fly_coords = None
+    points = []
+    for fly_contour in fly_cnts[1]:
+        bound_rect = cv2.boundingRect(fly_contour)
+        pt1 = (bound_rect[0], bound_rect[1])
+        pt2 = (bound_rect[0] + bound_rect[2], bound_rect[1] + bound_rect[3])
+        points.append(pt1)
+        points.append(pt2)
+        fly_coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
+        area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
+        if area > 400:
+            fly_coords = None

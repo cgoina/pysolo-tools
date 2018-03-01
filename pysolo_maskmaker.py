@@ -59,7 +59,7 @@ def main():
             'x_tilt': 0,
 
             'y1': 300,
-            'y_len': 45,
+            'y_len': 50,
             'y_sep': 2,
             'y_tilt': 0,
         }

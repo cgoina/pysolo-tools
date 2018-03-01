@@ -49,7 +49,7 @@ def main():
     image_source = MovieFile(config.get_monitors().get(0).get('source'),
                              start=options.start_frame, step=options.frame_step, resolution=config.get_option('fullsize'))
     image_arena = Arena()
-    image_arena.load_rois(config.get_monitors().get(0).get('mask_file'))
+    image_arena.load_rois(config.get_monitors().get(1).get('mask_file'))
 
     process_image_frames(image_source, image_arena)
 
