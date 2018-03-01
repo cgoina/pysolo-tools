@@ -22,16 +22,50 @@ class Arena():
         self._frames_per_period = frames_per_period
 
         # shape ( flies, (x,y) ) Contains the coordinates of the last second (if fps > 1, average)
-        self._data_buffer = np.zeros((1, 2), dtype=np.int)
+        self._fly_coord_buffer = np.zeros((1, 2), dtype=np.int)
         # shape ( flies, self._frames_per_period, (x,y) ) Contains the coordinates of the last frame
-        self._data_min = np.zeros((1, self._frames_per_period, 2), dtype=np.int)
+        self._fly_period_end_coords = np.zeros((1, self._frames_per_period, 2), dtype=np.int)
+        self._first_position = (0, 0)
+
+
+    def add_fly_coords(self, fly_index, coords):
+        """
+        Add the provided coordinates to the existing list
+        fly_index   int     the fly index number in the arena
+        coords      (x,y)    the coordinates to add
+        Called for every fly moving in every frame
+        """
+        fly_size = 15  # About 15 pixels at 640x480
+        max_movement = fly_size * 100
+        min_movement = fly_size / 3
+
+        previous_position = tuple(self._fly_coord_buffer[fly_index])
+        is_first_movement = (previous_position == self._first_position)
+        fly_coords = coords or previous_position  # coords is None if no blob was detected
+
+        distance = self.__distance(previous_position, fly_coords)
+        if (distance > max_movement and not is_first_movement) or (distance < min_movement):
+            fly_coords = previous_position
+
+        # Does a running average for the coordinates of the fly at each frame to _fly_coord_buffer
+        # This way the shape of _fly_coord_buffer is always (n, (x,y)) and once a second we just have to add the (x,y)
+        # values to _fly_period_end_coords, whose shape is (n, 60, (x,y))
+        self._fly_coord_buffer[fly_index] = np.append(self._fly_coord_buffer[fly_index], fly_coords, axis=0).reshape(-1, 2).mean(axis=0)
+        return fly_coords, distance
+
+    def _distance(self, p1, p2):
+        """
+        Calculate the distance between two cartesian points
+        """
+        ((x1, y1), (x2, y2)) = (p1, p2)
+        return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
     def add_roi(self, roi, n_flies=1):
         self.ROIS.append(roi)
         self._points_to_track.append(n_flies)
         self._beams.append(self._get_midline(roi))
 
-    def _roi_to_rect(self, roi, scale=None):
+    def roi_to_rect(self, roi, scale=None):
         """
         Converts a ROI (a tuple of four points coordinates) into
         a Rect (a tuple of two points coordinates)
@@ -41,7 +75,11 @@ class Arena():
         rx = max([x1, x2, x3, x4])
         uy = min([y1, y2, y3, y4])
         ly = max([y1, y2, y3, y4])
-        return ((lx, uy), (rx, ly))
+        scalef = (1, 1) if scale is None else scale
+        return (
+            (int(lx * scalef[0]), int(uy * scalef[1])),
+            (int(rx * scalef[0]), int(ly * scalef[1]))
+        )
 
     def roi_to_poly(self, roi, scale=None):
         """
@@ -67,7 +105,7 @@ class Arena():
         Return the position of each ROI's midline
         Will automatically determine the orientation of the vial
         """
-        (x1, y1), (x2, y2) = self._roi_to_rect(roi)
+        (x1, y1), (x2, y2) = self.roi_to_rect(roi)
         horizontal = abs(x2 - x1) > abs(y2 - y1)
         if horizontal:
             xm = x1 + (x2 - x1) / 2
@@ -92,8 +130,8 @@ class Arena():
             self.ROIS = cPickle.load(cf)
             self._points_to_track = cPickle.load(cf)
         n_rois = len(self.ROIS)
-        self._data_buffer = np.zeros((n_rois, 2), dtype=np.int)
-        self._data_min = np.zeros((n_rois, self._frames_per_period, 2), dtype=np.int)
+        self._fly_coord_buffer = np.zeros((n_rois, 2), dtype=np.int)
+        self._fly_period_end_coords = np.zeros((n_rois, self._frames_per_period, 2), dtype=np.int)
 
         for roi in self.ROIS:
             self._beams.append(self._get_midline(roi))
@@ -101,15 +139,18 @@ class Arena():
 
 class ImageSource():
 
-    def __init__(self, resolution=None, data_resolution=None):
+    def __init__(self, resolution=None, size=None):
         self._resolution = resolution
-        self._data_resolution = data_resolution
+        self._size = size
 
     def get_scale(self):
-        if self._data_resolution is not None and self._resolution is not None:
-            return (self._data_resolution[0] / self._resolution[0], self._data_resolution[1] / self._resolution[1])
+        if self._size is not None and self._resolution is not None:
+            return (self._size[0] / self._resolution[0], self._size[1] / self._resolution[1])
         else:
             return None
+
+    def get_size(self):
+        return self._size
 
     def get_image(self):
         pass
@@ -133,7 +174,7 @@ class MovieFile(ImageSource):
         height = int(self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         width = int(self._capture.get(cv2.CAP_PROP_FRAME_WIDTH))
 
-        super(MovieFile, self).__init__(resolution=resolution, data_resolution=(width, height))
+        super(MovieFile, self).__init__(resolution=resolution, size=(width, height))
 
         nframes = int(self._capture.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -167,42 +208,74 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
-def process_image_frames(image_source, arena):
+def process_image_frames(image_source, arena, moving_alpha=0.05):
     previous_frame = None
+    moving_average = None
+    roiMsk = np.zeros(image_source.get_size(), np.uint8)
+
+    for roi in arena.ROIS:
+        cv2.fillPoly(roiMsk, [np.array(arena.roi_to_poly(roi, image_source.get_scale()))], color=[255,255,255])
+
     while True:
         next_frame_res = image_source.get_image()
         if not next_frame_res[0]:
             return
         frame_image = next_frame_res[2]
 
-        grey_image = cv2.cvtColor(frame_image, cv2.COLOR_BGR2GRAY)
-        grey_image = cv2.GaussianBlur(grey_image, (21, 21), 0)
-
-        roiMsk = grey_image.clone()
+        # smooth the image to get rid of false positives
+        frame_image = cv2.GaussianBlur(frame_image, (21, 21), 0)
+        cv2.imwrite("frame-%d.jpg" % next_frame_res[1], frame_image)
 
         if previous_frame is None:
-            previous_frame = grey_image
-            continue
+            moving_average = np.float32(frame_image)
+        else:
+            cv2.accumulateWeighted(frame_image, moving_average, moving_alpha)
 
-        frame_delta = cv2.absdiff(previous_frame, grey_image)
-        thresh = cv2.threshold(frame_delta, 20, 255, cv2.THRESH_BINARY)[1]
+        temp_frame = cv2.convertScaleAbs(moving_average)
 
-        # cv2.imwrite("grey%d.jpg" % next_frame_res[1], grey_image)
-        # cv2.imwrite("frame%d.jpg" % next_frame_res[1], frame_delta)
+        cv2.imwrite("moving-%d.jpg" % next_frame_res[1], temp_frame)
 
+        frame_delta = cv2.absdiff(frame_image, temp_frame)
+        grey_image = cv2.cvtColor(frame_delta, cv2.COLOR_BGR2GRAY)
+        cv2.imwrite("grey-%d.jpg" % next_frame_res[1], grey_image)
+
+        thresh = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
         thresh = cv2.dilate(thresh, None, iterations=2)
         thresh = cv2.erode(thresh, None, iterations=2)
 
-        cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # cv2.imwrite("thresh%d.jpg" % next_frame_res[1], thresh)
+
+
+        cv2.imwrite("thresh%d.jpg" % next_frame_res[1], thresh)
+
+        thresh_rois = cv2.bitwise_and(thresh, thresh, mask=roiMsk)
+        cv2.imwrite("masked_%d.jpg" % next_frame_res[1], thresh_rois)
+
+        cnts = cv2.findContours(thresh_rois.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
         # cv2.imwrite("cnts_0_%d.jpg" % next_frame_res[1], cnts[0])
 
         # print("!!!! CNTS", cnts[1])
         for roi in arena.ROIS:
-            cv2.fillPoly(cnts[0], [np.array(arena.roi_to_poly(roi, image_source.get_scale()))], color=[255,255,255])
-            # cv2.polylines(cnts[0], [np.array(list(arena.roi_to_rect(roi, image_source.get_scale())))], isClosed=True, color=[255, 255, 255])
+            # cv2.fillPoly(cnts[0], [np.array(arena.roi_to_poly(roi, image_source.get_scale()))], color=[255,255,255])
+            cv2.polylines(cnts[0], [np.array(arena.roi_to_poly(roi, image_source.get_scale()))], isClosed=True, color=[255, 255, 255])
 
         cv2.imwrite("cnts_1_%d.jpg" % next_frame_res[1], cnts[0])
+
+        fly_coords = None
+        points = []
+        for contour in cnts[1]:
+            bound_rect = cv2.boundingRect(contour)
+            pt1 = (bound_rect[0], bound_rect[1])
+            pt2 = (bound_rect[0] + bound_rect[2], bound_rect[1] + bound_rect[3])
+            points.append(pt1);
+            points.append(pt2)
+            cv2.rectangle(frame_image, pt1, pt2, [255, 0, 0], 1)
+            fly_coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
+            area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
+            if area > 400:
+                fly_coords = None
+
+
+        cv2.imwrite("frame_%d.jpg" % next_frame_res[1], frame_image)
 
         previous_frame = grey_image
 
