@@ -20,7 +20,7 @@ class MonitorArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
-    def __init__(self, track_type, sleep_deprivation_flag, fps=61, acq_time=None):
+    def __init__(self, track_type, sleep_deprivation_flag, fps=61, flies_per_roi=1, acq_time=None):
         """
         :param frames_per_period: number of frames per period
         """
@@ -28,16 +28,15 @@ class MonitorArea():
         self._sleep_deprivation_flag = sleep_deprivation_flag
         self.ROIS = [] # regions of interest
         self._beams = [] # beams: absolute coordinates
-        self._ROAS = [] # regions of actions
         self._points_to_track = []
         self._fps = fps
         self._acq_time = datetime.now() if acq_time is None else acq_time
 
         # shape ( flies, (x,y) ) Contains the coordinates of the current frame
-        self._frame_fly_coord_buffer = np.zeros((1, 2), dtype=np.int)
+        self._frame_fly_coord_buffer = np.zeros((flies_per_roi, 2), dtype=np.int)
         # shape ( flies, self._fps, (x,y) )
         # Contains the coordinates from all frames from the current period
-        self._period_fly_coord_buffer = np.zeros((1, self._fps, 2), dtype=np.int)
+        self._period_fly_coord_buffer = np.zeros((flies_per_roi, self._fps, 2), dtype=np.int)
         self._first_position = (0, 0)
 
     def set_output(self, filename):
@@ -147,16 +146,25 @@ class MonitorArea():
         with open(filename, 'rb') as cf:
             self.ROIS = cPickle.load(cf)
             self._points_to_track = cPickle.load(cf)
-        n_rois = len(self.ROIS)
-        self._frame_fly_coord_buffer = np.zeros((n_rois, 2), dtype=np.int)
-        self._period_fly_coord_buffer = np.zeros((n_rois, self._fps, 2), dtype=np.int)
-
+        self._reset_data_buffers()
         for roi in self.ROIS:
             self._beams.append(self._get_midline(roi))
+
+    def _reset_data_buffers(self):
+        self._reset_frame_data_buffer()
+        self._reset_period_data_buffer()
+
+    def _reset_period_data_buffer(self):
+        self._period_fly_coord_buffer = np.zeros((len(self.ROIS), self._fps, 2), dtype=np.int)
+
+    def _reset_frame_data_buffer(self):
+        self._frame_fly_coord_buffer = np.zeros((len(self.ROIS), 2), dtype=np.int)
 
     def update_frame_activity(self, frame_time_pos):
         buffer_index = int((frame_time_pos - int(frame_time_pos)) * self._fps)
         self._period_fly_coord_buffer[:, buffer_index] = self._frame_fly_coord_buffer
+        # prepare the frame coordinate buffer for the next frame
+        self._frame_fly_coord_buffer = np.zeros((len(self.ROIS), 2), dtype=np.int)
 
     def write_activity(self, frame_time, extend=True, scale=None):
         if self.output_filename:
@@ -202,6 +210,8 @@ class MonitorArea():
                     ofh.write(a)
                     ofh.write(extension)
                     ofh.write('\n')
+        # prepare the data buffer for the next period
+        self._reset_data_buffers()
 
     def _calculate_distances(self):
         """
@@ -258,9 +268,14 @@ class MonitorArea():
         scalef = (1, 1) if scale is None else scale
         beams = []
         for roi, beam in zip(self.ROIS, self._beams):
-            rx, ry = self.roi_to_rect(roi, scale=scalef)[0]
+            rx, ry = self.roi_to_rect(roi)[0]
             (bx0, by0), (bx1, by1) = beam
-            beams.append(((bx0 * scalef[0] - rx, by0 * scalef[1] - ry), (bx1 * scalef[0] - rx, by1 * scalef[1] - ry)))
+            beams.append(
+                (
+                    ((bx0 - rx) * scalef[0], (by0 - ry) * scalef[1]),
+                    ((bx1 - rx) * scalef[0], (by1 - ry) * scalef[1])
+                )
+            )
         return beams
 
     def _calculate_position(self, resolution=1):
@@ -391,7 +406,7 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
-def process_image_frames(image_source, monitor_areas, moving_alpha=0.2, gaussian_filter_size=(21, 21), gaussian_sigma=20):
+def process_image_frames(image_source, monitor_areas, moving_alpha=0.01, gaussian_filter_size=(21, 21), gaussian_sigma=1):
     previous_frame = None
     moving_average = None
     last_time_pos_processed = None
@@ -447,27 +462,31 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.2, gaussian
 
 def setRoi(image, roiMsk, roi):
     cv2.fillPoly(roiMsk, [roi], color=[255, 255, 255])
-    cv2.polylines(image, [roi], isClosed=True, color=[255, 255, 255])
 
 
 def process_roi(image, image_index, monitor_area, roi, monitor_area_index, roi_index, scalef):
     roiMsk = np.zeros(image.shape, np.uint8)
+    (offset_x, offset_y), _ = monitor_area.roi_to_rect(roi, scalef);
     setRoi(image, roiMsk, np.array(monitor_area.roi_to_poly(roi, scalef)))
 
     image_roi = cv2.bitwise_and(image, image, mask=roiMsk)
     cv2.imwrite("masked-%d-%d-%d.jpg" % (image_index, monitor_area_index, roi_index), image_roi)
-    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    # get the contours relative to the upper left corner of the ROI
+    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE, offset=(-offset_x, -offset_y))
 
     fly_coords = None
-    points = []
     for fly_contour in fly_cnts[1]:
-        bound_rect = cv2.boundingRect(fly_contour)
-        pt1 = (bound_rect[0], bound_rect[1])
-        pt2 = (bound_rect[0] + bound_rect[2], bound_rect[1] + bound_rect[3])
-        points.append(pt1)
-        points.append(pt2)
-        fly_coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
-        area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
-        if area > 400:
+        fly_contour_moments = cv2.moments(fly_contour)
+        area = fly_contour_moments['m00']
+        if area > 0:
+            fly_coords = (fly_contour_moments['m10'] / fly_contour_moments['m00'], fly_contour_moments['m01'] / fly_contour_moments['m00'])
+        else:
+            bound_rect = cv2.boundingRect(fly_contour)
+            pt1 = (bound_rect[0], bound_rect[1])
+            pt2 = (bound_rect[0] + bound_rect[2], bound_rect[1] + bound_rect[3])
+            fly_coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
+            area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
+
+        if area > 400 * scalef[0] * scalef[1]:
             fly_coords = None
     return monitor_area.add_fly_coords(roi_index, fly_coords)
