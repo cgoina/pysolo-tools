@@ -162,9 +162,26 @@ class MonitorArea():
             frame_dt = self._acq_time + timedelta(seconds=frame_time)
             frame_dt_str = frame_dt.strftime('%d %b %y\t%H:%M:%S')
 
+            activity = []
+            if self._track_type == 0:
+                activity = [self._calculate_distances(), ]
+            elif self._track_type == 1:
+                activity = [self._calculate_vbm(), ]
+            elif self._track_type == 2:
+                activity = self._calculate_position()
+
             print("!!!!!!!!!!!!!!! WRITE TO ", frame_dt_str, self.output_filename)
             with open(self.output_filename, 'a') as ofh:
                 ofh.write("!!!!!!")
+
+    def _calculate_distances(self):
+        pass # TODO
+
+    def _calculate_vbm(self):
+        pass # TODO
+
+    def _calculate_position(self):
+        pass # TODO
 
 
 class ImageSource():
