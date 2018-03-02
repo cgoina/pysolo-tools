@@ -17,7 +17,7 @@ class MonitorArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
-    def __init__(self, frames_per_period=61):
+    def __init__(self, fps=61):
         """
         :param frames_per_period: number of frames per period
         """
@@ -25,12 +25,13 @@ class MonitorArea():
         self._beams = [] # beams: absolute coordinates
         self._ROAS = [] # regions of actions
         self._points_to_track = []
-        self._frames_per_period = frames_per_period
+        self._fps = fps
 
-        # shape ( flies, (x,y) ) Contains the coordinates of the last second (if fps > 1, average)
-        self._fly_coord_buffer = np.zeros((1, 2), dtype=np.int)
-        # shape ( flies, self._frames_per_period, (x,y) ) Contains the coordinates of the last frame
-        self._fly_period_end_coords = np.zeros((1, self._frames_per_period, 2), dtype=np.int)
+        # shape ( flies, (x,y) ) Contains the coordinates of the current frame
+        self._frame_fly_coord_buffer = np.zeros((1, 2), dtype=np.int)
+        # shape ( flies, self._fps, (x,y) )
+        # Contains the coordinates from all frames from the current period
+        self._period_fly_coord_buffer = np.zeros((1, self._fps, 2), dtype=np.int)
         self._first_position = (0, 0)
 
     def set_output(self, filename):
@@ -49,7 +50,7 @@ class MonitorArea():
         max_movement = fly_size * 100
         min_movement = fly_size / 3
 
-        previous_position = tuple(self._fly_coord_buffer[fly_index])
+        previous_position = tuple(self._frame_fly_coord_buffer[fly_index])
         is_first_movement = (previous_position == self._first_position)
         fly_coords = coords or previous_position  # coords is None if no blob was detected
 
@@ -60,7 +61,7 @@ class MonitorArea():
         # Does a running average for the coordinates of the fly at each frame to _fly_coord_buffer
         # This way the shape of _fly_coord_buffer is always (n, (x,y)) and once a second we just have to add the (x,y)
         # values to _fly_period_end_coords, whose shape is (n, 60, (x,y))
-        self._fly_coord_buffer[fly_index] = np.append(self._fly_coord_buffer[fly_index], fly_coords, axis=0).reshape(-1, 2).mean(axis=0)
+        self._frame_fly_coord_buffer[fly_index] = np.append(self._frame_fly_coord_buffer[fly_index], fly_coords, axis=0).reshape(-1, 2).mean(axis=0)
         return fly_coords, distance
 
     def _distance(self, p1, p2):
@@ -140,11 +141,15 @@ class MonitorArea():
             self.ROIS = cPickle.load(cf)
             self._points_to_track = cPickle.load(cf)
         n_rois = len(self.ROIS)
-        self._fly_coord_buffer = np.zeros((n_rois, 2), dtype=np.int)
-        self._fly_period_end_coords = np.zeros((n_rois, self._frames_per_period, 2), dtype=np.int)
+        self._frame_fly_coord_buffer = np.zeros((n_rois, 2), dtype=np.int)
+        self._period_fly_coord_buffer = np.zeros((n_rois, self._fps, 2), dtype=np.int)
 
         for roi in self.ROIS:
             self._beams.append(self._get_midline(roi))
+
+    def update_frame_activity(self, frame_time_pos):
+        buffer_index = int((frame_time_pos - int(frame_time_pos)) * self._fps)
+        self._period_fly_coord_buffer[:, buffer_index] = self._frame_fly_coord_buffer
 
     def write_activity(self):
 
@@ -203,9 +208,13 @@ class MovieFile(ImageSource):
         self._end = nframes if end is None or end > nframes or end < 0 else end
         self._step = step or 1
         self._total_frames = nframes
+        self._fps = int(self._capture.get(cv2.CAP_PROP_FPS))
         self._current_frame = self._start
         if self._current_frame != 0:
             self._capture.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
+
+    def get_fps(self):
+        return self._fps
 
     def get_image(self):
         if self._current_frame < 0 or self._current_frame >= self._end:
@@ -272,6 +281,9 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
         for area_index, monitor_area in enumerate(monitor_areas):
             for roi_index, roi in enumerate(monitor_area.ROIS):
                 process_roi(binary_image, next_frame_res[1], monitor_area, roi, area_index, roi_index, image_source.get_scale())
+
+            # prepare the frame coordinates buffer for the next frame
+            monitor_area.update_frame_activity(frame_time_pos)
 
         if last_time_pos_processed is None or frame_time_pos - last_time_pos_processed >= 1:
             last_time_pos_processed = frame_time_pos
