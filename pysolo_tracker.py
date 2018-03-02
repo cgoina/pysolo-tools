@@ -5,6 +5,7 @@ import os
 import sys
 
 from argparse import ArgumentParser
+from _datetime import datetime
 from pysolo_config import Config
 from pysolo_video import MovieFile, MonitorArea, process_image_frames
 
@@ -24,6 +25,9 @@ def main():
     parser.add_argument('--end-frame', default=-1, type=int, dest='end_frame', help='End frame')
     parser.add_argument('-v', '--video-file', dest='video_file', help='Video file')
     parser.add_argument('-m', '--mask', dest='mask_file', help='Mask file')
+    parser.add_argument('-t', '--acq-time', dest='acq_time',
+                        type=lambda s: datetime.strptime(s, '%Y-%m-%d %H:%M:%S'),
+                        help='Acquisition time - format YYYY-dd-MM HH:mm:ss')
 
     args = parser.parse_args()
 
@@ -47,7 +51,7 @@ def main():
                              resolution=config.get_option('fullsize'))
 
     def create_monitor_area(monitor_index):
-        monitor_area = MonitorArea(fps=image_source.get_fps())
+        monitor_area = MonitorArea(fps=image_source.get_fps(), acq_time=args.acq_time)
         monitor_area.load_rois(config.get_monitors().get(monitor_index).get('mask_file'))
         monitor_area.set_output(
             os.path.join(config.get_option('data_folder'), 'Monitor%02d.txt' % monitor_index)

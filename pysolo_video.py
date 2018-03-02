@@ -3,10 +3,13 @@ import logging
 import numpy as np
 import _pickle as cPickle
 
+from datetime import datetime
 from os import makedirs
 from os.path import dirname
 
+
 _logger = logging.getLogger('tracker')
+
 
 class MonitorArea():
     """
@@ -17,7 +20,7 @@ class MonitorArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
-    def __init__(self, fps=61):
+    def __init__(self, fps=61, acq_time=None):
         """
         :param frames_per_period: number of frames per period
         """
@@ -26,6 +29,7 @@ class MonitorArea():
         self._ROAS = [] # regions of actions
         self._points_to_track = []
         self._fps = fps
+        self._acq_time = datetime.now() if acq_time is None else acq_time
 
         # shape ( flies, (x,y) ) Contains the coordinates of the current frame
         self._frame_fly_coord_buffer = np.zeros((1, 2), dtype=np.int)
