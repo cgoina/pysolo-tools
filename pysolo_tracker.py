@@ -7,7 +7,7 @@ import sys
 from argparse import ArgumentParser
 from _datetime import datetime
 from pysolo_config import Config
-from pysolo_video import MovieFile, MonitorArea, process_image_frames
+from pysolo_video import (MovieFile, MonitorArea, process_image_frames)
 
 
 def main():

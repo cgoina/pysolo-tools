@@ -359,11 +359,39 @@ class MovieFile(ImageSource):
         frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
         return frame_time_in_millis / 1000 # return the time in seconds
 
+    def get_background(self, moving_alpha=0.2, gaussian_filter_size=(21, 21), gaussian_sigma=20):
+        """
+        The method attempts to get the background image using accumulate weighted method
+        :param moving_alpha:
+        :param gaussian_filter_size:
+        :param gaussian_sigma:
+        :return:
+        """
+        next_frame_res = self.get_image()
+        frame_image = next_frame_res[2]
+        # smooth the image to get rid of false positives
+        frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
+        # initialize the moving average
+        moving_average = np.float32(frame_image)
+        while next_frame_res[0]:
+            next_frame_res = self.get_image()
+            if not next_frame_res[0]:
+                break
+            _logger.debug('Update moving average for %d' % next_frame_res[1])
+            frame_image = next_frame_res[2]
+
+            # smooth the image to get rid of false positives
+            frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
+            cv2.accumulateWeighted(frame_image, moving_average, moving_alpha)
+
+        background = cv2.convertScaleAbs(moving_average)
+        return background
+
     def close(self):
         self._capture.release()
 
 
-def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
+def process_image_frames(image_source, monitor_areas, moving_alpha=0.2, gaussian_filter_size=(21, 21), gaussian_sigma=20):
     previous_frame = None
     moving_average = None
     last_time_pos_processed = None
@@ -372,12 +400,12 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
         frame_time_pos = image_source.get_frame_time()
         next_frame_res = image_source.get_image()
         if not next_frame_res[0]:
-            return
+            break
         _logger.info('Process frame %d(frame time: %rs)' % (next_frame_res[1], frame_time_pos))
         frame_image = next_frame_res[2]
 
         # smooth the image to get rid of false positives
-        frame_image = cv2.GaussianBlur(frame_image, (21, 21), 0)
+        frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
         cv2.imwrite("frame-%d.jpg" % next_frame_res[1], frame_image)
 
         if previous_frame is None:
