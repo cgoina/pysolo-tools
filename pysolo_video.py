@@ -20,11 +20,12 @@ class MonitorArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
-    def __init__(self, track_type, fps=61, acq_time=None):
+    def __init__(self, track_type, sleep_deprivation_flag, fps=61, acq_time=None):
         """
         :param frames_per_period: number of frames per period
         """
         self._track_type = track_type
+        self._sleep_deprivation_flag = sleep_deprivation_flag
         self.ROIS = [] # regions of interest
         self._beams = [] # beams: absolute coordinates
         self._ROAS = [] # regions of actions
@@ -40,6 +41,7 @@ class MonitorArea():
         self._first_position = (0, 0)
 
     def set_output(self, filename):
+        self._lineno = 0;
         self.output_filename = filename
         if self.output_filename:
             makedirs(dirname(self.output_filename), exist_ok=True)
@@ -156,32 +158,126 @@ class MonitorArea():
         buffer_index = int((frame_time_pos - int(frame_time_pos)) * self._fps)
         self._period_fly_coord_buffer[:, buffer_index] = self._frame_fly_coord_buffer
 
-    def write_activity(self, frame_time):
-
+    def write_activity(self, frame_time, extend=True, scale=None):
         if self.output_filename:
+            # monitor is active
+            active = '1'
+            # frames per seconds (FPS)
+            damscan = self._fps
+            # monitor with sleep deprivation capabilities?
+            sleep_deprivation = self._sleep_deprivation_flag * 1
+            # monitor number, not yet implemented
+            monitor = '0'
+            # unused
+            unused = 0
+            # is light on or off?
+            light = '0'  # changed to 0 from ? for compatability with SCAMP
+            # frame timestamp
             frame_dt = self._acq_time + timedelta(seconds=frame_time)
             frame_dt_str = frame_dt.strftime('%d %b %y\t%H:%M:%S')
-
+            # get fly activity
             activity = []
             if self._track_type == 0:
-                activity = [self._calculate_distances(), ]
+                activity = self._calculate_distances()
             elif self._track_type == 1:
-                activity = [self._calculate_vbm(), ]
+                activity = self._calculate_vbm()
             elif self._track_type == 2:
                 activity = self._calculate_position()
 
-            print("!!!!!!!!!!!!!!! WRITE TO ", frame_dt_str, self.output_filename)
+            # Expand the readings to 32 flies for compatibility reasons with trikinetics
+            flies = len(activity[0].split('\t'))
+            if extend and flies < 32:
+                extension = '\t' + '\t'.join(['0', ] * (32 - flies))
+            else:
+                extension = ''
+
             with open(self.output_filename, 'a') as ofh:
-                ofh.write("!!!!!!")
+                for a in activity:
+                    self._lineno += 1
+                    row_prefix = '%s\t' * 9 % (self._lineno, frame_dt_str,
+                                               active, damscan, self._track_type,
+                                               sleep_deprivation,
+                                               monitor, unused, light)
+                    ofh.write(row_prefix)
+                    ofh.write(a)
+                    ofh.write(extension)
+                    ofh.write('\n')
 
     def _calculate_distances(self):
-        pass # TODO
+        """
+        Motion is calculated as distance in px per minutes
+        """
+        # shift by one second left flies, seconds, (x,y)
+        fs = np.roll(self._period_fly_coord_buffer, -1, axis=1)
+
+        x = self._period_fly_coord_buffer[:, :, :1]
+        y = self._period_fly_coord_buffer[:, :, 1:]
+
+        x1 = fs[:, :, :1]
+        y1 = fs[:, :, 1:]
+
+        d = self._distance((x, y), (x1, y1))
+
+        # we sum everything BUT the last bit of information otherwise we have data duplication
+        values = d[:, :-1, :].sum(axis=1).reshape(-1)
+        activity = '\t'.join(['%s' % int(v) for v in values])
+        return [activity]
 
     def _calculate_vbm(self):
-        pass # TODO
+        """
+        Motion is calculated as virtual beam crossing
+        Detects automatically beam orientation (vertical vs horizontal)
+        """
+        values = []
+        for fd, md in zip(self._period_fly_coord_buffer, self._relative_beams()):
+            (mx1, my1), (mx2, my2) = md
+            horizontal = (mx1 == mx2)
 
-    def _calculate_position(self):
-        pass # TODO
+            fs = np.roll(fd, -1, 0)
+
+            x = fd[:, :1]
+            y = fd[:, 1:]  # THESE COORDINATES ARE RELATIVE TO THE ROI
+            x1 = fs[:, :1]
+            y1 = fs[:, 1:]
+
+            if horizontal:
+                crossed = (x < mx1) * (x1 > mx1) + (x > mx1) * (x1 < mx1)
+            else:
+                crossed = (y < my1) * (y1 > my1) + (y > my1) * (y1 < my1)
+
+            values.append(crossed.sum())
+
+        activity = '\t'.join([str(v) for v in values])
+        return [activity]
+
+    def _relative_beams(self):
+        """
+        Return the coordinates of the beam
+        relative to the ROI to which they belong
+        """
+        beams = []
+        for roi, beam in zip(self.ROIS, self._beams):
+            rx, ry = self.roi_to_rect(roi)[0]
+            (bx0, by0), (bx1, by1) = beam
+            beams.append(((bx0 - rx, by0 - ry), (bx1 - rx, by1 - ry)))
+        return beams
+
+    def _calculate_position(self, resolution=1):
+        """
+        Simply write out position of the fly at every time interval, as
+        decided by "resolution" (seconds)
+        """
+        activity = []
+        n_rois = len(self.ROIS)
+
+        a = self._period_fly_coord_buffer.transpose(1, 0, 2)  # ( interval, n_flies, (x,y) )
+        a = a.reshape(resolution, -1, n_rois, 2).mean(0)
+
+        for fd in a:
+            onerow = '\t'.join(['%s,%s' % (x, y) for (x, y) in fd])
+            activity.append(onerow)
+
+        return activity
 
 
 class ImageSource():
@@ -313,7 +409,7 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
         if last_time_pos_processed is None or frame_time_pos - last_time_pos_processed >= 1:
             last_time_pos_processed = frame_time_pos
             for monitor_area in monitor_areas:
-                monitor_area.write_activity(frame_time_pos)
+                monitor_area.write_activity(frame_time_pos, scale=image_source.get_scale)
 
         previous_frame = grey_image
 
@@ -345,5 +441,8 @@ def process_roi(image, image_index, monitor_area, roi, monitor_area_index, roi_i
         area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
         if area > 400:
             fly_coords = None
+    inv_scalef_x = 1 if scalef is None or scalef[0] == 0 else 1 / scalef[0]
+    inv_scalef_y = 1 if scalef is None or scalef[1] == 0 else 1 / scalef[1]
 
-    return monitor_area.add_fly_coords(roi_index, fly_coords)
+    unscaled_fly_coords = None if fly_coords is None else (fly_coords[0] * inv_scalef_x, fly_coords[1] * inv_scalef_y)
+    return monitor_area.add_fly_coords(roi_index, unscaled_fly_coords)
