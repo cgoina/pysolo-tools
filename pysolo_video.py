@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import _pickle as cPickle
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import makedirs
 from os.path import dirname
 
@@ -20,10 +20,11 @@ class MonitorArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
-    def __init__(self, fps=61, acq_time=None):
+    def __init__(self, track_type, fps=61, acq_time=None):
         """
         :param frames_per_period: number of frames per period
         """
+        self._track_type = track_type
         self.ROIS = [] # regions of interest
         self._beams = [] # beams: absolute coordinates
         self._ROAS = [] # regions of actions
@@ -155,10 +156,13 @@ class MonitorArea():
         buffer_index = int((frame_time_pos - int(frame_time_pos)) * self._fps)
         self._period_fly_coord_buffer[:, buffer_index] = self._frame_fly_coord_buffer
 
-    def write_activity(self):
+    def write_activity(self, frame_time):
 
         if self.output_filename:
-            print("!!!!!!!!!!!!!!! WRITE TO ", self.output_filename)
+            frame_dt = self._acq_time + timedelta(seconds=frame_time)
+            frame_dt_str = frame_dt.strftime('%d %b %y\t%H:%M:%S')
+
+            print("!!!!!!!!!!!!!!! WRITE TO ", frame_dt_str, self.output_filename)
             with open(self.output_filename, 'a') as ofh:
                 ofh.write("!!!!!!")
 
@@ -292,7 +296,7 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
         if last_time_pos_processed is None or frame_time_pos - last_time_pos_processed >= 1:
             last_time_pos_processed = frame_time_pos
             for monitor_area in monitor_areas:
-                monitor_area.write_activity()
+                monitor_area.write_activity(frame_time_pos)
 
         previous_frame = grey_image
 
