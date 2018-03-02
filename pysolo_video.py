@@ -180,7 +180,7 @@ class MonitorArea():
             if self._track_type == 0:
                 activity = self._calculate_distances()
             elif self._track_type == 1:
-                activity = self._calculate_vbm()
+                activity = self._calculate_vbm(scale=scale)
             elif self._track_type == 2:
                 activity = self._calculate_position()
 
@@ -223,13 +223,13 @@ class MonitorArea():
         activity = '\t'.join(['%s' % int(v) for v in values])
         return [activity]
 
-    def _calculate_vbm(self):
+    def _calculate_vbm(self, scale=None):
         """
         Motion is calculated as virtual beam crossing
         Detects automatically beam orientation (vertical vs horizontal)
         """
         values = []
-        for fd, md in zip(self._period_fly_coord_buffer, self._relative_beams()):
+        for fd, md in zip(self._period_fly_coord_buffer, self._relative_beams(scale=scale)):
             (mx1, my1), (mx2, my2) = md
             horizontal = (mx1 == mx2)
 
@@ -250,16 +250,17 @@ class MonitorArea():
         activity = '\t'.join([str(v) for v in values])
         return [activity]
 
-    def _relative_beams(self):
+    def _relative_beams(self, scale=None):
         """
         Return the coordinates of the beam
         relative to the ROI to which they belong
         """
+        scalef = (1, 1) if scale is None else scale
         beams = []
         for roi, beam in zip(self.ROIS, self._beams):
-            rx, ry = self.roi_to_rect(roi)[0]
+            rx, ry = self.roi_to_rect(roi, scale=scalef)[0]
             (bx0, by0), (bx1, by1) = beam
-            beams.append(((bx0 - rx, by0 - ry), (bx1 - rx, by1 - ry)))
+            beams.append(((bx0 * scalef[0] - rx, by0 * scalef[1] - ry), (bx1 * scalef[0] - rx, by1 * scalef[1] - ry)))
         return beams
 
     def _calculate_position(self, resolution=1):
@@ -409,7 +410,7 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.2):
         if last_time_pos_processed is None or frame_time_pos - last_time_pos_processed >= 1:
             last_time_pos_processed = frame_time_pos
             for monitor_area in monitor_areas:
-                monitor_area.write_activity(frame_time_pos, scale=image_source.get_scale)
+                monitor_area.write_activity(frame_time_pos, scale=image_source.get_scale())
 
         previous_frame = grey_image
 
@@ -441,8 +442,4 @@ def process_roi(image, image_index, monitor_area, roi, monitor_area_index, roi_i
         area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
         if area > 400:
             fly_coords = None
-    inv_scalef_x = 1 if scalef is None or scalef[0] == 0 else 1 / scalef[0]
-    inv_scalef_y = 1 if scalef is None or scalef[1] == 0 else 1 / scalef[1]
-
-    unscaled_fly_coords = None if fly_coords is None else (fly_coords[0] * inv_scalef_x, fly_coords[1] * inv_scalef_y)
-    return monitor_area.add_fly_coords(roi_index, unscaled_fly_coords)
+    return monitor_area.add_fly_coords(roi_index, fly_coords)
