@@ -53,15 +53,15 @@ def main():
     def create_monitor_area(monitor_index):
         monitor_area = MonitorArea(config.get_monitors().get(monitor_index).get('track_type'),
                                    config.get_monitors().get(monitor_index).get('isSDMonitor'),
-                                   fps=image_source.get_fps(),
                                    acq_time=args.acq_time)
+        monitor_area.set_roi_filter([2])
         monitor_area.load_rois(config.get_monitors().get(monitor_index).get('mask_file'))
         monitor_area.set_output(
             os.path.join(config.get_option('data_folder'), 'Monitor%02d.txt' % monitor_index)
         )
         return monitor_area
 
-    process_image_frames(image_source, [create_monitor_area(i) for i in [0, 1, 2, 3]])
+    process_image_frames(image_source, [create_monitor_area(i) for i in [0]])
 
     image_source.close()
 
