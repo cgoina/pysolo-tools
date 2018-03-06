@@ -51,17 +51,20 @@ def main():
                              resolution=config.get_option('fullsize'))
 
     def create_monitor_area(monitor_index):
-        monitor_area = MonitorArea(config.get_monitors().get(monitor_index).get('track_type'),
-                                   config.get_monitors().get(monitor_index).get('isSDMonitor'),
+        monitor_config = config.get_monitors().get(monitor_index)
+        monitor_area = MonitorArea(monitor_config.get('track_type'),
+                                   monitor_config.get('isSDMonitor'),
+                                   fps=image_source.get_fps(),
                                    acq_time=args.acq_time)
-        monitor_area.set_roi_filter([2])
+        if monitor_config.get('tracked_rois_filter') is not None:
+            monitor_area.set_roi_filter(list(monitor_config.get('tracked_rois_filter')))
         monitor_area.load_rois(config.get_monitors().get(monitor_index).get('mask_file'))
         monitor_area.set_output(
             os.path.join(config.get_option('data_folder'), 'Monitor%02d.txt' % monitor_index)
         )
         return monitor_area
 
-    process_image_frames(image_source, [create_monitor_area(i) for i in [0]])
+    process_image_frames(image_source, [create_monitor_area(i) for i in [0, 1, 2]])
 
     image_source.close()
 

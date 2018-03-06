@@ -15,6 +15,8 @@ def _convert_val(val):
 def _convert_simple_val(val):
     if val == '':
         return ''
+    elif val == 'None':
+        return None
     elif val == 'True' or val == 'False':
         return val == 'True'
     else:
@@ -25,7 +27,7 @@ def _convert_simple_val(val):
 
 
 class Config:
-    _monitor_properties = ['track', 'maskfile', 'trackType', 'isSDMonitor']
+    _monitor_properties = ['track', 'maskfile', 'trackType', 'isSDMonitor', 'tracked_rois_filter']
 
     def __init__(self):
         self._config_filename = None
@@ -85,5 +87,6 @@ class Config:
                 monitors[mon]['track_type'] = monitor_data.get('trackType')
                 monitors[mon]['track'] = monitor_data.get('track')
                 monitors[mon]['isSDMonitor'] = monitor_data.get('isSDMonitor')
+                monitors[mon]['tracked_rois_filter'] = monitor_data.get('tracked_rois_filter')
 
         return monitors

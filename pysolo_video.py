@@ -1,11 +1,11 @@
 import cv2
 import logging
 import numpy as np
+import os
 import _pickle as cPickle
 
 from datetime import datetime, timedelta
-from os import makedirs
-from os.path import dirname
+from os.path import dirname, exists
 
 
 _logger = logging.getLogger('tracker')
@@ -34,6 +34,7 @@ class MonitorArea():
         self._datawindow_size = datawindow_size
         self._fps = fps
         self._acq_time = datetime.now() if acq_time is None else acq_time
+        self._roi_filter = None
 
         # shape ( rois, (time, x, y) ) Contains the coordinates of the current frame per ROI
         self._fly_coord_by_roi = np.zeros((1, 2), dtype=np.int)
@@ -41,8 +42,7 @@ class MonitorArea():
         # Contains the frame time and the coordinates from all frames from the current period
         self._datawindow_fly_coord_by_roi = np.zeros((1, self._datawindow_size, 2), dtype=np.int)
         self._datawindow_frame_time_pos = np.zeros(self._datawindow_size, dtype=np.int)
-        self._datawindow_start_buffer_index = 0
-        self._datawindow_end_buffer_index = 0
+        self._datawindow_current_index = 0
         self._first_position = (0, 0)
 
     def set_roi_filter(self, trackable_rois):
@@ -56,11 +56,13 @@ class MonitorArea():
     def is_roi_trackable(self, roi):
         return self._roi_filter is None or roi in self._roi_filter
 
-    def set_output(self, filename):
+    def set_output(self, filename, clear_if_exists=True):
         self._lineno = 0;
         self.output_filename = filename
         if self.output_filename:
-            makedirs(dirname(self.output_filename), exist_ok=True)
+            os.makedirs(dirname(self.output_filename), exist_ok=True)
+        if exists(self.output_filename) and clear_if_exists:
+            os.remove(self.output_filename)
 
     def add_fly_coords(self, roi_index, coords):
         """
@@ -179,13 +181,18 @@ class MonitorArea():
     def _reset_fly_coord_buffer(self):
         self._fly_coord_by_roi = np.zeros((len(self.ROIS), 2), dtype=np.int)
 
+    def _shift_data_window(self, nframes):
+        self._datawindow_fly_coord_by_roi = np.roll(self._datawindow_fly_coord_by_roi, (-nframes, 0), axis=(1, 0))
+        self._datawindow_frame_time_pos = np.roll(self._datawindow_frame_time_pos, -nframes)
+        self._datawindow_current_index -= nframes
+
     def update_frame_activity(self, frame_time):
-        self._datawindow_fly_coord_by_roi[:, self._datawindow_end_buffer_index] = self._fly_coord_by_roi
-        self._datawindow_frame_time_pos[self._datawindow_end_buffer_index] = frame_time
+        self._datawindow_fly_coord_by_roi[:, self._datawindow_current_index] = self._fly_coord_by_roi
+        self._datawindow_frame_time_pos[self._datawindow_current_index] = frame_time
         # # prepare the frame coordinate buffer for the next frame
         self._reset_fly_coord_buffer()
-        self._datawindow_end_buffer_index += 1
-        if self._datawindow_end_buffer_index >= self._datawindow_size:
+        self._datawindow_current_index += 1
+        if self._datawindow_current_index >= self._datawindow_size:
             return True
         else:
             return False
@@ -244,42 +251,47 @@ class MonitorArea():
         # shift by one second left flies, seconds, (x,y)
         fs = np.roll(self._datawindow_fly_coord_by_roi, -1, axis=1)
 
-        x = self._datawindow_fly_coord_by_roi[:, :, :1]
-        y = self._datawindow_fly_coord_by_roi[:, :, 1:]
+        x = self._datawindow_fly_coord_by_roi[:, :self._datawindow_current_index, 0]
+        y = self._datawindow_fly_coord_by_roi[:, :self._datawindow_current_index, 1]
 
-        x1 = fs[:, :, :1]
-        y1 = fs[:, :, 1:]
+        x1 = fs[:, :self._datawindow_current_index, 0]
+        y1 = fs[:, :self._datawindow_current_index, 1]
 
         d = self._distance((x, y), (x1, y1))
 
+        nframes = self._datawindow_current_index - 1
+        values = np.zeros((nframes, 1 + len(self.ROIS)), dtype=np.int)
+        values[:, 0] = self._datawindow_frame_time_pos[1:self._datawindow_current_index]
+
         # we sum everything BUT the last bit of information otherwise we have data duplication
-        values = d[:, :-1, :].sum(axis=1).reshape(-1)
-        activity = '\t'.join(['%s' % int(v) for v in values])
-        return [activity]
+        values[:,1:] = d.transpose()[:nframes,:]
+
+        self._shift_data_window(nframes)
+
+        return values
 
     def _calculate_vbm(self, scale=None):
         """
         Motion is calculated as virtual beam crossing
         Detects automatically beam orientation (vertical vs horizontal)
         """
-        nframes = self._datawindow_end_buffer_index - self._datawindow_start_buffer_index -1
+        nframes = self._datawindow_current_index - 1
         # the values.shape is (nframes, nrois + 1)),
         #  where the value[:, 0] is the frame time position
         values = np.zeros((nframes, 1 + len(self.ROIS)), dtype=np.int)
+        values[:, 0] = self._datawindow_frame_time_pos[1:self._datawindow_current_index]
         roi_index = 0
         for fd, md in zip(self._datawindow_fly_coord_by_roi, self._relative_beams(scale=scale)):
-            values[:, 0] = self._datawindow_frame_time_pos[
-                           self._datawindow_start_buffer_index + 1:self._datawindow_end_buffer_index]
             if self.is_roi_trackable(roi_index):
                 (mx1, my1), (mx2, my2) = md
                 horizontal = (mx1 == mx2)
 
                 fs = np.roll(fd, -1, 0) # coordinates shifted to the following frame
 
-                x = fd[self._datawindow_start_buffer_index:self._datawindow_end_buffer_index, 0]
-                y = fd[self._datawindow_start_buffer_index:self._datawindow_end_buffer_index, 1]
-                x1 = fs[self._datawindow_start_buffer_index:self._datawindow_end_buffer_index, 0]
-                y1 = fs[self._datawindow_start_buffer_index:self._datawindow_end_buffer_index, 1]
+                x = fd[:self._datawindow_current_index, 0]
+                y = fd[:self._datawindow_current_index, 1]
+                x1 = fs[:self._datawindow_current_index, 0]
+                y1 = fs[:self._datawindow_current_index, 1]
 
                 if horizontal:
                     crosses = (x < mx1) * (x1 > mx1) + (x > mx1) * (x1 < mx1)
@@ -292,10 +304,7 @@ class MonitorArea():
 
             roi_index += 1
 
-        self._datawindow_fly_coord_by_roi = np.roll(self._datawindow_fly_coord_by_roi, (-nframes, 0), axis=(1, 0))
-        self._datawindow_frame_time_pos = np.roll(self._datawindow_frame_time_pos, -nframes)
-
-        self._datawindow_end_buffer_index -= nframes
+        self._shift_data_window(nframes)
 
         return values
 
@@ -322,17 +331,18 @@ class MonitorArea():
         Simply write out position of the fly at every time interval, as
         decided by "resolution" (seconds)
         """
-        activity = []
-        n_rois = len(self.ROIS)
+        nframes = self._datawindow_current_index - 1
+        fs = np.roll(self._datawindow_fly_coord_by_roi, -1, axis=1)
+        x = fs[:, :self._datawindow_current_index, 0]
+        y = fs[:, :self._datawindow_current_index, 1]
 
-        a = self._datawindow_fly_coord_by_roi.transpose(1, 0, 2)  # ( interval, n_flies, (x,y) )
-        a = a.reshape(resolution, -1, n_rois, 2).mean(0)
+        values = []
+        for frame in range(0, nframes):
+            values.append((self._datawindow_frame_time_pos[frame + 1],'\t'.join(['%s,%s' % (x, y) for (x, y) in fs[:,frame,:]])))
 
-        for fd in a:
-            onerow = '\t'.join(['%s,%s' % (x, y) for (x, y) in fd])
-            activity.append(onerow)
+        self._shift_data_window(nframes)
 
-        return activity
+        return values
 
 
 class ImageSource():
