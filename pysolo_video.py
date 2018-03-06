@@ -413,7 +413,7 @@ class MovieFile(ImageSource):
         frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
         return frame_time_in_millis / 1000 # return the time in seconds
 
-    def get_background(self, moving_alpha=0.2, gaussian_filter_size=(21, 21), gaussian_sigma=20):
+    def get_background(self, moving_alpha=0.2, gaussian_filter_size=(21, 21), gaussian_sigma=0.2):
         """
         The method attempts to get the background image using accumulate weighted method
         :param moving_alpha:
@@ -445,7 +445,7 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
-def process_image_frames(image_source, monitor_areas, moving_alpha=0.01, gaussian_filter_size=(21, 21), gaussian_sigma=1):
+def process_image_frames(image_source, monitor_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21), gaussian_sigma=1):
     previous_frame = None
     moving_average = None
 
@@ -464,14 +464,13 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.01, gaussia
         if moving_average is None:
             moving_average = np.float32(frame_image)
         else:
-            src_frame_image = np.float32(frame_image)
-            cv2.accumulateWeighted(src_frame_image, moving_average, moving_alpha)
+            moving_average = cv2.accumulateWeighted(frame_image, moving_average, alpha=moving_alpha)
 
         temp_frame = cv2.convertScaleAbs(moving_average)
 
         cv2.imwrite("moving-%d.jpg" % next_frame_res[1], temp_frame)
 
-        background_diff = cv2.absdiff(frame_image, temp_frame) # subtract the background
+        background_diff = cv2.subtract(temp_frame, frame_image) # subtract the background
         grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
 
         cv2.imwrite("foreground-%d.jpg" % next_frame_res[1], grey_image)
