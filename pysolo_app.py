@@ -6,7 +6,7 @@ import cv2
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QPoint
 from PyQt5.QtGui import QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QMainWindow, QHBoxLayout,
-                             QLabel, QLineEdit, QGridLayout, QFileDialog, QScrollArea, QVBoxLayout)
+                             QLabel, QLineEdit, QGridLayout, QFileDialog, QScrollArea, QVBoxLayout, QSpinBox, QComboBox)
 
 from pysolo_video import MovieFile
 
@@ -57,7 +57,14 @@ class FormWidget(QWidget):
     def __controls(self):
         self._source_filename_txt = QLineEdit()
         self._source_filename_txt.setDisabled(True)
-        self._n_monitored_areas_txt = QLineEdit()
+        self._n_monitored_areas_spinner = QSpinBox()
+        self._n_monitored_areas_spinner.setMinimum(0)
+        self._n_monitored_areas_spinner.setMaximum(16)
+        self._n_monitored_areas_spinner.valueChanged.connect(self.n_monitored_areas_changed)
+
+        self.selected_region = QComboBox()
+        self.selected_region.setDisabled(True)
+        self.selected_region.currentIndexChanged.connect(self.selected_region_changed)
 
     def __layout(self):
         formLayout = QGridLayout()
@@ -70,7 +77,11 @@ class FormWidget(QWidget):
 
         n_monitored_areas_lbl = QLabel("Number of monitors")
         formLayout.addWidget(n_monitored_areas_lbl, 1, 0)
-        formLayout.addWidget(self._n_monitored_areas_txt, 1, 1, 1, 2)
+        formLayout.addWidget(self._n_monitored_areas_spinner, 1, 1, 1, 2)
+
+        current_region_lbl = QLabel("Current region")
+        formLayout.addWidget(current_region_lbl, 2, 0)
+        formLayout.addWidget(self.selected_region, 2, 1, 1, 2)
 
         self.setLayout(formLayout)
 
@@ -92,6 +103,26 @@ class FormWidget(QWidget):
                                      color_swapped_image.shape[1],
                                      QImage.Format_RGB888)
             self._video_signal.emit(monitored_image)
+
+    def n_monitored_areas_changed(self):
+        # update the selectable regions
+        new_regions_counter = self._n_monitored_areas_spinner.value()
+        # update selected region control
+        if new_regions_counter == 0:
+            n_regions = self.selected_region.count()
+            for r in range(n_regions):
+                self.selected_region.removeItem(r)
+            self.selected_region.setDisabled(True)
+        else:
+            n_regions = self.selected_region.count()
+            for r in range(new_regions_counter, n_regions):
+                self.selected_region.removeItem(r)
+            for r in range(n_regions, new_regions_counter):
+                self.selected_region.addItem('Region %d' % (r + 1), r)
+            self.selected_region.setDisabled(False)
+
+    def selected_region_changed(self):
+        pass
 
 
 def main():
