@@ -2,8 +2,13 @@
 
 import sys
 
+import cv2
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QPoint
+from PyQt5.QtGui import QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QMainWindow, QHBoxLayout,
-                             QLabel, QLineEdit, QGridLayout, QFileDialog)
+                             QLabel, QLineEdit, QGridLayout, QFileDialog, QScrollArea, QVBoxLayout)
+
+from pysolo_video import MovieFile
 
 
 class PySoloMainAppWindow(QMainWindow):
@@ -16,18 +21,31 @@ class PySoloMainAppWindow(QMainWindow):
         layout.addWidget(self._monitor_widget)
         layout.addWidget(self._form_widget)
         self.setCentralWidget(mainWidget)
+        self._form_widget._video_signal.connect(self._monitor_widget.set_image)
 
 
 class MonitorWidget(QWidget):
     def __init__(self, parent):
         super(MonitorWidget, self).__init__(parent)
+        self._image = QImage()
         self._initUI()
 
     def _initUI(self):
-        self.resize(700, 300)
+        self.video_frame = QLabel()
+        layout = QVBoxLayout()
+        layout.addWidget(self.video_frame)
+        self.setLayout(layout)
+
+    @pyqtSlot(QImage)
+    def set_image(self, image):
+        self._image = image
+        pixmap = QPixmap.fromImage(image)
+        self.video_frame.setPixmap(pixmap)
 
 
 class FormWidget(QWidget):
+    _video_signal = pyqtSignal(QImage)
+
     def __init__(self, parent):
         super(FormWidget, self).__init__(parent)
         self._initUI()
@@ -64,6 +82,16 @@ class FormWidget(QWidget):
                                                   options=options)
         if fileName:
             self._source_filename_txt.setText(fileName)
+            self._movie_file = MovieFile(fileName)
+            _, _, image = self._movie_file.get_image()
+            color_swapped_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            color_swapped_image = cv2.resize(color_swapped_image, (640, 640), interpolation=cv2.INTER_AREA)
+
+            monitored_image = QImage(color_swapped_image,
+                                     color_swapped_image.shape[0],
+                                     color_swapped_image.shape[1],
+                                     QImage.Format_RGB888)
+            self._video_signal.emit(monitored_image)
 
 
 def main():
