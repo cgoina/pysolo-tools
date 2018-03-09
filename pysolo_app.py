@@ -5,10 +5,10 @@ import sys
 
 import cv2
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QPoint, QRect, Qt, QObject
-from PyQt5.QtGui import QImage, QPainter, QPixmap
+from PyQt5.QtGui import QImage, QPainter, QPixmap, QIcon
 from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QMainWindow, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QScrollArea, QVBoxLayout, QSpinBox, QComboBox,
-                             QGroupBox, QCheckBox)
+                             QGroupBox, QCheckBox, QAction, QMenu, qApp)
 
 from pysolo_video import MovieFile
 
@@ -17,9 +17,32 @@ class PySoloMainAppWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super(PySoloMainAppWindow, self).__init__(parent)
-        communication_channels = WidgetCommunicationChannels()
-        self._monitor_widget = MonitorWidget(self, communication_channels)
-        self._form_widget = FormWidget(self, communication_channels)
+        self._communication_channels = WidgetCommunicationChannels()
+        self._initUI()
+
+    def _initUI(self):
+        self._init_widgets()
+        self._init_menus()
+        self.setWindowTitle('Fly Tracker')
+
+    def _init_menus(self):
+        mainMenu = self.menuBar()
+        fileMenu = mainMenu.addMenu('File')
+
+        newConfigAct = QAction('New configuration', self)
+        loadConfigAct = QAction('Load configuration', self)
+
+        exitAct = QAction('E&xit', self)
+        exitAct.setShortcut('Ctrl+Q')
+        exitAct.triggered.connect(self.close)
+
+        fileMenu.addAction(newConfigAct)
+        fileMenu.addAction(loadConfigAct)
+        fileMenu.addAction(exitAct)
+
+    def _init_widgets(self):
+        self._monitor_widget = MonitorWidget(self, self._communication_channels)
+        self._form_widget = FormWidget(self, self._communication_channels)
         mainWidget = QWidget()
         layout = QHBoxLayout(mainWidget)
         layout.addWidget(self._monitor_widget)
@@ -141,16 +164,16 @@ class CommonOptionsFormWidget(QWidget):
         self._n_monitored_areas_spinner.valueChanged.connect(self._update_number_of_regions)
 
         # current region widgets
-        self.selected_region = QComboBox()
-        self.selected_region.setDisabled(True)
+        self._selected_region = QComboBox()
+        self._selected_region.setDisabled(True)
         selected_region_lbl = QLabel("Select region")
         # add selected region control to the layout
         group_layout.addWidget(selected_region_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self.selected_region, current_layout_row, 0)
+        group_layout.addWidget(self._selected_region, current_layout_row, 0)
         current_layout_row += 1
         # current region event handlers
-        self.selected_region.currentIndexChanged.connect(self._update_selected_region)
+        self._selected_region.currentIndexChanged.connect(self._update_selected_region)
 
         # set the layout
         groupBox = QGroupBox()
@@ -181,21 +204,26 @@ class CommonOptionsFormWidget(QWidget):
         new_regions_counter = self._n_monitored_areas_spinner.value()
         # update selected region control
         if new_regions_counter == 0:
-            n_regions = self.selected_region.count()
+            n_regions = self._selected_region.count()
             for r in range(n_regions):
-                self.selected_region.removeItem(r)
-            self.selected_region.setDisabled(True)
+                self._selected_region.removeItem(r)
+            self._selected_region.setDisabled(True)
+            self._communication_channels.region_selected_signal.emit(new_regions_counter)
         else:
-            n_regions = self.selected_region.count()
+            n_regions = self._selected_region.count()
             for r in range(new_regions_counter, n_regions):
-                self.selected_region.removeItem(r)
+                self._selected_region.removeItem(r)
             for r in range(n_regions, new_regions_counter):
-                self.selected_region.addItem('Region %d' % (r + 1), r)
-            self.selected_region.setDisabled(False)
-        self._communication_channels.region_selected_signal.emit(new_regions_counter)
+                self._selected_region.addItem('Region %d' % (r + 1), r)
+            self._selected_region.setDisabled(False)
+            if n_regions == 0:
+                self._communication_channels.region_selected_signal.emit(1)
+            elif self._selected_region.currentData() >= new_regions_counter:
+                self._communication_channels.region_selected_signal.emit(new_regions_counter)
 
     def _update_selected_region(self):
-        pass
+        if self._selected_region.currentData() is not None:
+            self._communication_channels.region_selected_signal.emit(self._selected_region.currentData() + 1)
 
 
 class MonitoredAreaFormWidget(QWidget):
