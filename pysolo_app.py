@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QMainWindow, QH
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QScrollArea, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox, QAction, QMenu, qApp, QDialog)
 
+from pysolo_maskmaker import create_mask, get_mask_params
 from pysolo_video import MovieFile
 
 
@@ -399,10 +400,10 @@ class CreateMaskDlgWidget(QDialog):
 
         y1_lbl = QLabel('y1')
         self.y1_txt = QLineEdit()
-        y_span_lbl = QLabel('y span')
-        self.y_span_txt = QLineEdit()
-        y_gap_lbl = QLabel('y gap')
-        self.y_gap_txt = QLineEdit()
+        y_len_lbl = QLabel('y span')
+        self.y_len_txt = QLineEdit()
+        y_sep_lbl = QLabel('y gap')
+        self.y_sep_txt = QLineEdit()
         y_tilt_lbl = QLabel('y tilt')
         self.y_tilt_txt = QLineEdit()
 
@@ -414,17 +415,17 @@ class CreateMaskDlgWidget(QDialog):
         current_widget_row += 1
 
         layout.addWidget(x_span_lbl, current_widget_row, 0)
-        layout.addWidget(y_span_lbl, current_widget_row, 1)
+        layout.addWidget(y_len_lbl, current_widget_row, 1)
         current_widget_row += 1
         layout.addWidget(self.x_span_txt, current_widget_row, 0)
-        layout.addWidget(self.y_span_txt, current_widget_row, 1)
+        layout.addWidget(self.y_len_txt, current_widget_row, 1)
         current_widget_row += 1
 
         layout.addWidget(x_gap_lbl, current_widget_row, 0)
-        layout.addWidget(y_gap_lbl, current_widget_row, 1)
+        layout.addWidget(y_sep_lbl, current_widget_row, 1)
         current_widget_row += 1
         layout.addWidget(self.x_gap_txt, current_widget_row, 0)
-        layout.addWidget(self.y_gap_txt, current_widget_row, 1)
+        layout.addWidget(self.y_sep_txt, current_widget_row, 1)
         current_widget_row += 1
 
         layout.addWidget(x_tilt_lbl, current_widget_row, 0)
@@ -440,14 +441,49 @@ class CreateMaskDlgWidget(QDialog):
         layout.addWidget(cancel_btn, current_widget_row, 0)
         layout.addWidget(save_btn, current_widget_row, 1)
 
+        self._update_mask_params()
+        self._area_location_choice.currentIndexChanged.connect(self._update_mask_params)
+
         cancel_btn.clicked.connect(self.close)
         save_btn.clicked.connect(self._save_mask)
 
         self.setLayout(layout)
 
+
+    def _update_mask_params(self):
+        mask_params = get_mask_params(self._area_location_choice.currentData())
+        self.x1_txt.setText(str(mask_params['x1']))
+        self.x_span_txt.setText(str(mask_params['x_span']))
+        self.x_gap_txt.setText(str(mask_params['x_gap']))
+        self.x_tilt_txt.setText(str(mask_params['x_tilt']))
+
+        self.y1_txt.setText(str(mask_params['y1']))
+        self.y_len_txt.setText(str(mask_params['y_len']))
+        self.y_sep_txt.setText(str(mask_params['y_sep']))
+        self.y_tilt_txt.setText(str(mask_params['y_tilt']))
+
     def _save_mask(self):
         # open the file dialog and save the mask
-        pass
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        mask_fileName, _ = QFileDialog.getSaveFileName(self,"QFileDialog.getSaveFileName()","","All Files (*);;Mask Files (*.msk)", options=options)
+        if mask_fileName:
+            # save mask to mask_fileName
+            mask_params = {
+                'x1': float(self.x1_txt.text()),
+                'x_span': float(self.x_span_txt.text()),
+                'x_gap': float(self.x_gap_txt.text()),
+                'x_tilt': float(self.x_tilt_txt.text()),
+
+                'y1': float(self.y1_txt.text()),
+                'y_len': float(self.y_len_txt.text()),
+                'y_sep': float(self.y_sep_txt.text()),
+                'y_tilt': float(self.y_tilt_txt.text()),
+            }
+            n_rows = self._rows_box.value()
+            n_cols = self._cols_box.value()
+            create_mask(n_rows, n_cols, mask_params, mask_fileName)
+            self.close() # close if everything went well
 
 
 def main():

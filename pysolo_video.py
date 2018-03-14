@@ -20,7 +20,7 @@ class MonitorArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
-    def __init__(self, track_type, sleep_deprivation_flag, datawindow_size=10, fps=1, acq_time=None):
+    def __init__(self, track_type=1, sleep_deprivation_flag=0, datawindow_size=10, fps=1, acq_time=None):
         """
         :param track_type: track type
         :param sleep_deprivation_flag: sleep deprivation flag
