@@ -6,21 +6,8 @@ from argparse import ArgumentParser
 from pysolo_video import MonitorArea
 
 
-def main():
-    parser = ArgumentParser(usage='prog [options]')
-    parser.add_argument('-m', '--mask-file', dest='mask_file', metavar='MASK_FILE',
-                        help='The full name of the mask file')
-    parser.add_argument('-r', '--region', dest='region',
-                        required=True,
-                        choices=['upper_left', 'lower_left', 'upper_right', 'lower_right'],
-                        help='The name of the region for which to generate the mask')
-
-    args = parser.parse_args()
-
-    rows = 1
-    columns = 14
-
-    coordinate_params = {
+def get_mask_params(area_location):
+    mask_params_by_area_location = {
         'upper_left': {
             'x1': 191.5,
             'x_span': 8,
@@ -66,21 +53,22 @@ def main():
             'y_tilt': 0,
         }
     }
+    return mask_params_by_area_location[area_location]
 
-    coord_params = coordinate_params[args.region]
 
-    x1 = coord_params['x1']
-    x_span = coord_params['x_span']
-    x_gap = coord_params['x_gap']
-    x_tilt = coord_params['x_tilt']
+def create_mask(n_rows, n_cols, mask_params, mask_filename):
+    x1 = mask_params['x1']
+    x_span = mask_params['x_span']
+    x_gap = mask_params['x_gap']
+    x_tilt = mask_params['x_tilt']
 
-    y1 = coord_params['y1']
-    y_len = coord_params['y_len']
-    y_sep = coord_params['y_sep']
-    y_tilt = coord_params['y_tilt']
+    y1 = mask_params['y1']
+    y_len = mask_params['y_len']
+    y_sep = mask_params['y_sep']
+    y_tilt = mask_params['y_tilt']
 
     arena = MonitorArea()
-    for col in range(0, columns):  # x-coordinates change through columns
+    for col in range(0, n_cols):  # x-coordinates change through columns
         ay = y1 + col * y_tilt  # reset y-coordinate start of col
         by = ay + y_len
         cy = by
@@ -92,7 +80,7 @@ def main():
         bx = ax
         cx = ax + x_span
         dx = cx
-        for row in range(0, rows):  # y-coordinates change through rows
+        for row in range(0, n_rows):  # y-coordinates change through rows
             arena.add_roi(
                 (
                     (int(ax), int(ay)),
@@ -110,7 +98,25 @@ def main():
             cx = ax + x_span
             dx = cx
 
-    arena.save_rois(args.mask_file)
+    arena.save_rois(mask_filename)
+
+
+def main():
+    parser = ArgumentParser(usage='prog [options]')
+    parser.add_argument('-m', '--mask-file', dest='mask_file', metavar='MASK_FILE',
+                        help='The full name of the mask file')
+    parser.add_argument('-r', '--region', dest='region',
+                        required=True,
+                        choices=['upper_left', 'lower_left', 'upper_right', 'lower_right'],
+                        help='The name of the region for which to generate the mask')
+
+    args = parser.parse_args()
+
+    rows = 1
+    columns = 14
+
+    mask_params = get_mask_params(args.region)
+    create_mask(rows, columns, mask_params, args.mask_file)
 
 
 if __name__ == '__main__':

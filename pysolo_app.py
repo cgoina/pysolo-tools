@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import numpy as np
 import sys
 
 import cv2
@@ -122,8 +121,8 @@ class CommonOptionsFormWidget(QWidget):
         # source file name widgets
         self._source_filename_txt = QLineEdit()
         self._source_filename_txt.setDisabled(True)
-        source_filename_lbl = QLabel("Select source file")
-        source_filename_btn = QPushButton("Open...")
+        source_filename_lbl = QLabel('Select source file')
+        source_filename_btn = QPushButton('Open...')
         # add the source filename control to the layout
         group_layout.addWidget(source_filename_lbl, current_layout_row, 0)
         current_layout_row += 1
@@ -136,8 +135,8 @@ class CommonOptionsFormWidget(QWidget):
         # results directory widgets
         self._results_dir_txt = QLineEdit()
         self._results_dir_txt.setDisabled(True)
-        results_dir_lbl = QLabel("Select results directory")
-        results_dir_btn = QPushButton("Select...")
+        results_dir_lbl = QLabel('Select results directory')
+        results_dir_btn = QPushButton('Select...')
         # add the source filename control to the layout
         group_layout.addWidget(results_dir_lbl, current_layout_row, 0)
         current_layout_row += 1
@@ -148,7 +147,7 @@ class CommonOptionsFormWidget(QWidget):
         results_dir_btn.clicked.connect(self._select_results_dir)
 
         # size
-        size_lbl = QLabel("Size")
+        size_lbl = QLabel('Size')
         group_layout.addWidget(size_lbl, current_layout_row, 0)
         current_layout_row += 1
         size_widget = QWidget()
@@ -166,7 +165,7 @@ class CommonOptionsFormWidget(QWidget):
         self._n_monitored_areas_box = QSpinBox()
         self._n_monitored_areas_box.setMinimum(0)
         self._n_monitored_areas_box.setMaximum(self._max_monitored_areas)
-        n_monitored_areas_lbl = QLabel("Number of monitored regions")
+        n_monitored_areas_lbl = QLabel('Number of monitored regions')
         # add the number of monitored regions control to the layout
         group_layout.addWidget(n_monitored_areas_lbl, current_layout_row, 0)
         current_layout_row += 1
@@ -176,16 +175,16 @@ class CommonOptionsFormWidget(QWidget):
         self._n_monitored_areas_box.valueChanged.connect(self._update_number_of_regions)
 
         # current region widgets
-        self._selected_region = QComboBox()
-        self._selected_region.setDisabled(True)
-        selected_region_lbl = QLabel("Select region")
+        self._selected_region_choice = QComboBox()
+        self._selected_region_choice.setDisabled(True)
+        selected_region_lbl = QLabel('Select region')
         # add selected region control to the layout
         group_layout.addWidget(selected_region_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._selected_region, current_layout_row, 0)
+        group_layout.addWidget(self._selected_region_choice, current_layout_row, 0)
         current_layout_row += 1
         # current region event handlers
-        self._selected_region.currentIndexChanged.connect(self._update_selected_region)
+        self._selected_region_choice.currentIndexChanged.connect(self._update_selected_region)
 
         # set the layout
         groupBox = QGroupBox()
@@ -196,7 +195,7 @@ class CommonOptionsFormWidget(QWidget):
 
     def _select_source_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
-        fileName, _ = QFileDialog.getOpenFileName(self, "Select source file",
+        fileName, _ = QFileDialog.getOpenFileName(self, 'Select source file',
                                                   self._source_filename_txt.text(),
                                                   filter='Video files (*.avi *.mpeg *.mp4);;All files (*)',
                                                   options=options)
@@ -206,7 +205,7 @@ class CommonOptionsFormWidget(QWidget):
 
     def _select_results_dir(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog | QFileDialog.ShowDirsOnly)
-        resultsDirName = QFileDialog.getExistingDirectory(self, "Select results directory",
+        resultsDirName = QFileDialog.getExistingDirectory(self, 'Select results directory',
                                                           self._results_dir_txt.text(),
                                                           options=options)
         if resultsDirName:
@@ -216,26 +215,26 @@ class CommonOptionsFormWidget(QWidget):
         new_regions_counter = self._n_monitored_areas_box.value()
         # update selected region control
         if new_regions_counter == 0:
-            n_regions = self._selected_region.count()
+            n_regions = self._selected_region_choice.count()
             for r in range(n_regions):
-                self._selected_region.removeItem(r)
-            self._selected_region.setDisabled(True)
+                self._selected_region_choice.removeItem(r)
+            self._selected_region_choice.setDisabled(True)
             self._communication_channels.region_selected_signal.emit(new_regions_counter)
         else:
-            n_regions = self._selected_region.count()
+            n_regions = self._selected_region_choice.count()
             for r in range(new_regions_counter, n_regions):
-                self._selected_region.removeItem(r)
+                self._selected_region_choice.removeItem(r)
             for r in range(n_regions, new_regions_counter):
-                self._selected_region.addItem('Region %d' % (r + 1), r)
-            self._selected_region.setDisabled(False)
+                self._selected_region_choice.addItem('Region %d' % (r + 1), r)
+            self._selected_region_choice.setDisabled(False)
             if n_regions == 0:
                 self._communication_channels.region_selected_signal.emit(1)
-            elif self._selected_region.currentData() >= new_regions_counter:
+            elif self._selected_region_choice.currentData() >= new_regions_counter:
                 self._communication_channels.region_selected_signal.emit(new_regions_counter)
 
     def _update_selected_region(self):
-        if self._selected_region.currentData() is not None:
-            self._communication_channels.region_selected_signal.emit(self._selected_region.currentData() + 1)
+        if self._selected_region_choice.currentData() is not None:
+            self._communication_channels.region_selected_signal.emit(self._selected_region_choice.currentData() + 1)
 
 
 class MonitoredAreaFormWidget(QWidget):
@@ -253,8 +252,8 @@ class MonitoredAreaFormWidget(QWidget):
         # source file name widgets
         self._mask_filename_txt = QLineEdit()
         self._mask_filename_txt.setDisabled(True)
-        mask_filename_lbl = QLabel("Select mask file")
-        mask_filename_btn = QPushButton("Open...")
+        mask_filename_lbl = QLabel('Select mask file')
+        mask_filename_btn = QPushButton('Open...')
         # add the mask filename control to the layout
         group_layout.addWidget(mask_filename_lbl, current_layout_row, 0)
         current_layout_row += 1
@@ -265,21 +264,21 @@ class MonitoredAreaFormWidget(QWidget):
         mask_filename_btn.clicked.connect(self._select_mask_file)
 
         # track type
-        self._track_type = QComboBox()
-        self._track_type.addItem("Distance", 0)
-        self._track_type.addItem("Crossover", 1)
-        self._track_type.addItem("Position", 2)
+        self._track_type_choice = QComboBox()
+        self._track_type_choice.addItem('Distance', 0)
+        self._track_type_choice.addItem('Crossover', 1)
+        self._track_type_choice.addItem('Position', 2)
 
-        track_type_lbl = QLabel("Select Track Type")
+        track_type_lbl = QLabel('Select Track Type')
         # add track type control to the layout
         group_layout.addWidget(track_type_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._track_type, current_layout_row, 0)
+        group_layout.addWidget(self._track_type_choice, current_layout_row, 0)
         current_layout_row += 1
 
         # track flag
         self._track_flag = QCheckBox()
-        track_flag_lbl = QLabel("Monitor area")
+        track_flag_lbl = QLabel('Monitor area')
         track_flag_widget = QWidget()
         track_flag_layout = QHBoxLayout(track_flag_widget)
         track_flag_layout.addWidget(self._track_flag)
@@ -290,7 +289,7 @@ class MonitoredAreaFormWidget(QWidget):
 
         # sleep deprivation flag
         self._sleep_deprivation_flag = QCheckBox()
-        sleep_deprivation_lbl = QLabel("Sleep deprivation")
+        sleep_deprivation_lbl = QLabel('Sleep deprivation')
         sleep_deprivationwidget = QWidget()
         sleep_deprivation_layout = QHBoxLayout(sleep_deprivationwidget)
         sleep_deprivation_layout.addWidget(self._sleep_deprivation_flag)
@@ -299,7 +298,7 @@ class MonitoredAreaFormWidget(QWidget):
         current_layout_row += 1
 
         # Aggregation interval
-        aggregation_interval_lbl = QLabel("Aggregation interval")
+        aggregation_interval_lbl = QLabel('Aggregation interval')
         group_layout.addWidget(aggregation_interval_lbl, current_layout_row, 0)
         current_layout_row += 1
         aggregation_interval_widget = QWidget()
@@ -322,7 +321,7 @@ class MonitoredAreaFormWidget(QWidget):
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
-        fileName, _ = QFileDialog.getOpenFileName(self, "Select mask file",
+        fileName, _ = QFileDialog.getOpenFileName(self, 'Select mask file',
                                                   self._mask_filename_txt.text(),
                                                   filter='All files (*)',
                                                   options=options)
@@ -335,6 +334,7 @@ class MonitoredAreaFormWidget(QWidget):
             self.setDisabled(True)
         else:
             self.setDisabled(False)
+
 
 class FormWidget(QWidget):
 
@@ -363,24 +363,99 @@ class CreateMaskDlgWidget(QDialog):
     def _initUI(self):
         layout = QGridLayout()
 
-        rows_lbl = QLabel("Rows")
+        area_location_lbl = QLabel('Area Location')
+        self._area_location_choice = QComboBox()
+        self._area_location_choice.addItem('Upper Left', 'upper_left')
+        self._area_location_choice.addItem('Upper Right', 'upper_right')
+        self._area_location_choice.addItem('Lower Left', 'lower_left')
+        self._area_location_choice.addItem('Lower Right', 'lower_right')
+
+        current_widget_row = 0
+        layout.addWidget(area_location_lbl, current_widget_row, 0)
+        layout.addWidget(self._area_location_choice, current_widget_row, 1)
+        current_widget_row += 1
+
+        rows_lbl = QLabel('Rows')
         self._rows_box = QSpinBox()
-        cols_lbl = QLabel("Cols")
+        cols_lbl = QLabel('Cols')
         self._cols_box = QSpinBox()
 
-        layout.addWidget(rows_lbl, 0, 0)
-        layout.addWidget(cols_lbl, 0, 1)
+        layout.addWidget(rows_lbl, current_widget_row, 0)
+        layout.addWidget(cols_lbl, current_widget_row, 1)
+        current_widget_row += 1
 
-        layout.addWidget(self._rows_box, 1, 0)
-        layout.addWidget(self._cols_box, 1, 1)
+        layout.addWidget(self._rows_box, current_widget_row, 0)
+        layout.addWidget(self._cols_box, current_widget_row, 1)
+        current_widget_row += 1
+
+        x1_lbl = QLabel('x1')
+        self.x1_txt = QLineEdit()
+        x_span_lbl = QLabel('x span')
+        self.x_span_txt = QLineEdit()
+        x_gap_lbl = QLabel('x gap')
+        self.x_gap_txt = QLineEdit()
+        x_tilt_lbl = QLabel('x tilt')
+        self.x_tilt_txt = QLineEdit()
+
+        y1_lbl = QLabel('y1')
+        self.y1_txt = QLineEdit()
+        y_span_lbl = QLabel('y span')
+        self.y_span_txt = QLineEdit()
+        y_gap_lbl = QLabel('y gap')
+        self.y_gap_txt = QLineEdit()
+        y_tilt_lbl = QLabel('y tilt')
+        self.y_tilt_txt = QLineEdit()
+
+        layout.addWidget(x1_lbl, current_widget_row, 0)
+        layout.addWidget(y1_lbl, current_widget_row, 1)
+        current_widget_row += 1
+        layout.addWidget(self.x1_txt, current_widget_row, 0)
+        layout.addWidget(self.y1_txt, current_widget_row, 1)
+        current_widget_row += 1
+
+        layout.addWidget(x_span_lbl, current_widget_row, 0)
+        layout.addWidget(y_span_lbl, current_widget_row, 1)
+        current_widget_row += 1
+        layout.addWidget(self.x_span_txt, current_widget_row, 0)
+        layout.addWidget(self.y_span_txt, current_widget_row, 1)
+        current_widget_row += 1
+
+        layout.addWidget(x_gap_lbl, current_widget_row, 0)
+        layout.addWidget(y_gap_lbl, current_widget_row, 1)
+        current_widget_row += 1
+        layout.addWidget(self.x_gap_txt, current_widget_row, 0)
+        layout.addWidget(self.y_gap_txt, current_widget_row, 1)
+        current_widget_row += 1
+
+        layout.addWidget(x_tilt_lbl, current_widget_row, 0)
+        layout.addWidget(y_tilt_lbl, current_widget_row, 1)
+        current_widget_row += 1
+        layout.addWidget(self.x_tilt_txt, current_widget_row, 0)
+        layout.addWidget(self.y_tilt_txt, current_widget_row, 1)
+
+        current_widget_row += 2
+
+        cancel_btn = QPushButton('Cancel')
+        save_btn = QPushButton('Save...')
+        layout.addWidget(cancel_btn, current_widget_row, 0)
+        layout.addWidget(save_btn, current_widget_row, 1)
+
+        cancel_btn.clicked.connect(self.close)
+        save_btn.clicked.connect(self._save_mask)
 
         self.setLayout(layout)
+
+    def _save_mask(self):
+        # open the file dialog and save the mask
+        pass
+
 
 def main():
     app = QApplication(sys.argv)
     config_app = PySoloMainAppWindow()
     config_app.show()
     app.exec_()
+
 
 if __name__ == '__main__':
     sys.exit(main())

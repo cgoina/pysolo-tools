@@ -469,7 +469,7 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.1, gaussian
 
         # smooth the image to get rid of false positives
         frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
-        cv2.imwrite("frame-%d.jpg" % next_frame_res[1], frame_image)
+        cv2.imwrite('frame-%d.jpg' % next_frame_res[1], frame_image)
 
         if moving_average is None:
             moving_average = np.float32(frame_image)
@@ -478,18 +478,18 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.1, gaussian
 
         temp_frame = cv2.convertScaleAbs(moving_average)
 
-        cv2.imwrite("moving-%d.jpg" % next_frame_res[1], temp_frame)
+        cv2.imwrite('moving-%d.jpg' % next_frame_res[1], temp_frame)
 
         background_diff = cv2.subtract(temp_frame, frame_image) # subtract the background
         grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
 
-        cv2.imwrite("foreground-%d.jpg" % next_frame_res[1], grey_image)
+        cv2.imwrite('foreground-%d.jpg' % next_frame_res[1], grey_image)
 
         binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
         binary_image = cv2.dilate(binary_image, None, iterations=2)
         binary_image = cv2.erode(binary_image, None, iterations=2)
 
-        cv2.imwrite("flyblobs-%d.jpg" % next_frame_res[1], binary_image)
+        cv2.imwrite('flyblobs-%d.jpg' % next_frame_res[1], binary_image)
 
         for area_index, monitor_area in enumerate(monitor_areas):
             for roi_index, roi in enumerate(monitor_area.ROIS):
@@ -520,7 +520,7 @@ def process_roi(image, image_index, monitor_area, roi, monitor_area_index, roi_i
     setRoi(image, roiMsk, np.array(monitor_area.roi_to_poly(roi, scalef)))
 
     image_roi = cv2.bitwise_and(image, image, mask=roiMsk)
-    cv2.imwrite("masked-%d-%d-%d.jpg" % (image_index, monitor_area_index, roi_index), image_roi)
+    cv2.imwrite('masked-%d-%d-%d.jpg' % (image_index, monitor_area_index, roi_index), image_roi)
     # get the contours relative to the upper left corner of the ROI
     fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE, offset=(-offset_x, -offset_y))
 
