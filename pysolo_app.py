@@ -8,7 +8,7 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QPoint, QRect, Qt, QObject
 from PyQt5.QtGui import QImage, QPainter, QPixmap, QIcon
 from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QMainWindow, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QScrollArea, QVBoxLayout, QSpinBox, QComboBox,
-                             QGroupBox, QCheckBox, QAction, QMenu, qApp)
+                             QGroupBox, QCheckBox, QAction, QMenu, qApp, QDialog)
 
 from pysolo_video import MovieFile
 
@@ -29,15 +29,21 @@ class PySoloMainAppWindow(QMainWindow):
         mainMenu = self.menuBar()
         fileMenu = mainMenu.addMenu('File')
 
-        newConfigAct = QAction('New configuration', self)
-        loadConfigAct = QAction('Load configuration', self)
+        loadConfigAct = QAction('&Open', self)
+        saveConfigAct = QAction('&Save', self)
+        saveConfigAsAct = QAction('Save &As', self)
+
+        newMaskAct = QAction('New &mask', self)
+        newMaskAct.triggered.connect(self._open_new_mask_dlg)
 
         exitAct = QAction('E&xit', self)
         exitAct.setShortcut('Ctrl+Q')
         exitAct.triggered.connect(self.close)
 
-        fileMenu.addAction(newConfigAct)
         fileMenu.addAction(loadConfigAct)
+        fileMenu.addAction(saveConfigAct)
+        fileMenu.addAction(saveConfigAsAct)
+        fileMenu.addAction(newMaskAct)
         fileMenu.addAction(exitAct)
 
     def _init_widgets(self):
@@ -48,6 +54,10 @@ class PySoloMainAppWindow(QMainWindow):
         layout.addWidget(self._monitor_widget)
         layout.addWidget(self._form_widget)
         self.setCentralWidget(mainWidget)
+
+    def _open_new_mask_dlg(self):
+        mask_editor = CreateMaskDlgWidget(self)
+        mask_editor.exec_()
 
 
 class WidgetCommunicationChannels(QObject):
@@ -142,26 +152,28 @@ class CommonOptionsFormWidget(QWidget):
         group_layout.addWidget(size_lbl, current_layout_row, 0)
         current_layout_row += 1
         size_widget = QWidget()
-        self._min_width = QSpinBox()
-        self._max_width = QSpinBox()
+        self._min_width_box = QSpinBox()
+        self._min_width_box.setMinimum(1)
+        self._max_width_box = QSpinBox()
+        self._max_width_box.setMinimum(1)
         size_layout = QHBoxLayout(size_widget)
-        size_layout.addWidget(self._min_width, Qt.AlignLeft)
-        size_layout.addWidget(self._max_width, Qt.AlignLeft)
+        size_layout.addWidget(self._min_width_box, Qt.AlignLeft)
+        size_layout.addWidget(self._max_width_box, Qt.AlignLeft)
         group_layout.addWidget(size_widget, current_layout_row, 0)
         current_layout_row += 1
 
         # number of monitored regions widgets
-        self._n_monitored_areas_spinner = QSpinBox()
-        self._n_monitored_areas_spinner.setMinimum(0)
-        self._n_monitored_areas_spinner.setMaximum(self._max_monitored_areas)
+        self._n_monitored_areas_box = QSpinBox()
+        self._n_monitored_areas_box.setMinimum(0)
+        self._n_monitored_areas_box.setMaximum(self._max_monitored_areas)
         n_monitored_areas_lbl = QLabel("Number of monitored regions")
         # add the number of monitored regions control to the layout
         group_layout.addWidget(n_monitored_areas_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._n_monitored_areas_spinner, current_layout_row, 0)
+        group_layout.addWidget(self._n_monitored_areas_box, current_layout_row, 0)
         current_layout_row += 1
         # number of monitored regions event handlers
-        self._n_monitored_areas_spinner.valueChanged.connect(self._update_number_of_regions)
+        self._n_monitored_areas_box.valueChanged.connect(self._update_number_of_regions)
 
         # current region widgets
         self._selected_region = QComboBox()
@@ -201,7 +213,7 @@ class CommonOptionsFormWidget(QWidget):
             self._results_dir_txt.setText(resultsDirName)
 
     def _update_number_of_regions(self):
-        new_regions_counter = self._n_monitored_areas_spinner.value()
+        new_regions_counter = self._n_monitored_areas_box.value()
         # update selected region control
         if new_regions_counter == 0:
             n_regions = self._selected_region.count()
@@ -291,12 +303,12 @@ class MonitoredAreaFormWidget(QWidget):
         group_layout.addWidget(aggregation_interval_lbl, current_layout_row, 0)
         current_layout_row += 1
         aggregation_interval_widget = QWidget()
-        self._aggregation_interval = QSpinBox()
-        self._aggregation_interval.setMinimum(1)
+        self._aggregation_interval_box = QSpinBox()
+        self._aggregation_interval_box.setMinimum(1)
         self._aggregation_interval_units = QComboBox()
         self._aggregation_interval_units.addItems(['frames', 'seconds', 'minutes'])
         aggregation_interval_layout = QHBoxLayout(aggregation_interval_widget)
-        aggregation_interval_layout.addWidget(self._aggregation_interval, Qt.AlignLeft)
+        aggregation_interval_layout.addWidget(self._aggregation_interval_box, Qt.AlignLeft)
         aggregation_interval_layout.addWidget(self._aggregation_interval_units, Qt.AlignLeft)
         group_layout.addWidget(aggregation_interval_widget, current_layout_row, 0)
         current_layout_row += 1
@@ -340,6 +352,29 @@ class FormWidget(QWidget):
         layout.addWidget(monitoredAreaFormWidget, 1, 0)
         self.setLayout(layout)
 
+
+class CreateMaskDlgWidget(QDialog):
+
+    def __init__(self, parent):
+        super(CreateMaskDlgWidget, self).__init__(parent)
+        self.setWindowTitle('MAsk Editor')
+        self._initUI()
+
+    def _initUI(self):
+        layout = QGridLayout()
+
+        rows_lbl = QLabel("Rows")
+        self._rows_box = QSpinBox()
+        cols_lbl = QLabel("Cols")
+        self._cols_box = QSpinBox()
+
+        layout.addWidget(rows_lbl, 0, 0)
+        layout.addWidget(cols_lbl, 0, 1)
+
+        layout.addWidget(self._rows_box, 1, 0)
+        layout.addWidget(self._cols_box, 1, 1)
+
+        self.setLayout(layout)
 
 def main():
     app = QApplication(sys.argv)
