@@ -3,8 +3,8 @@
 import sys
 
 import cv2
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QPoint, QRect, Qt, QObject
-from PyQt5.QtGui import QImage, QPainter, QPixmap, QIcon
+from PyQt5.QtCore import pyqtSignal, pyqtSlot, QPoint, QRect, Qt, QObject, QRegExp
+from PyQt5.QtGui import QImage, QPainter, QPixmap, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QMainWindow, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QScrollArea, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox, QAction, QMenu, qApp, QDialog)
@@ -389,23 +389,34 @@ class CreateMaskDlgWidget(QDialog):
         layout.addWidget(self._cols_box, current_widget_row, 1)
         current_widget_row += 1
 
+        reg_ex = QRegExp("[0-9]+.?[0-9]{,2}")
+        mask_param_validator = QRegExpValidator(reg_ex)
+
         x1_lbl = QLabel('x1')
         self.x1_txt = QLineEdit()
+        self.x1_txt.setValidator(mask_param_validator)
         x_span_lbl = QLabel('x span')
         self.x_span_txt = QLineEdit()
+        self.x_span_txt.setValidator(mask_param_validator)
         x_gap_lbl = QLabel('x gap')
         self.x_gap_txt = QLineEdit()
+        self.x_gap_txt.setValidator(mask_param_validator)
         x_tilt_lbl = QLabel('x tilt')
         self.x_tilt_txt = QLineEdit()
+        self.x_tilt_txt.setValidator(mask_param_validator)
 
         y1_lbl = QLabel('y1')
         self.y1_txt = QLineEdit()
+        self.y1_txt.setValidator(mask_param_validator)
         y_len_lbl = QLabel('y span')
         self.y_len_txt = QLineEdit()
+        self.y_len_txt.setValidator(mask_param_validator)
         y_sep_lbl = QLabel('y gap')
         self.y_sep_txt = QLineEdit()
+        self.y_sep_txt.setValidator(mask_param_validator)
         y_tilt_lbl = QLabel('y tilt')
         self.y_tilt_txt = QLineEdit()
+        self.y_tilt_txt.setValidator(mask_param_validator)
 
         layout.addWidget(x1_lbl, current_widget_row, 0)
         layout.addWidget(y1_lbl, current_widget_row, 1)
