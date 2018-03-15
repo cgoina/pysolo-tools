@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
+import cv2
 import sys
 
-import cv2
+from functools import partial
+
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QPoint, QRect, Qt, QObject, QRegExp
 from PyQt5.QtGui import QImage, QPainter, QPixmap, QIcon, QRegExpValidator
 from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QMainWindow, QHBoxLayout,
@@ -18,6 +20,7 @@ class PySoloMainAppWindow(QMainWindow):
     def __init__(self, parent=None):
         super(PySoloMainAppWindow, self).__init__(parent)
         self._communication_channels = WidgetCommunicationChannels()
+        self._config_filename = None
         self._initUI()
 
     def _initUI(self):
@@ -30,8 +33,13 @@ class PySoloMainAppWindow(QMainWindow):
         fileMenu = mainMenu.addMenu('File')
 
         loadConfigAct = QAction('&Open', self)
+        loadConfigAct.triggered.connect(self._open_config)
+
         saveConfigAct = QAction('&Save', self)
+        saveConfigAct.triggered.connect(partial(self._save_config, self._config_filename))
+
         saveConfigAsAct = QAction('Save &As', self)
+        saveConfigAct.triggered.connect(partial(self._save_config, None))
 
         newMaskAct = QAction('New &mask', self)
         newMaskAct.triggered.connect(self._open_new_mask_dlg)
@@ -43,6 +51,7 @@ class PySoloMainAppWindow(QMainWindow):
         fileMenu.addAction(loadConfigAct)
         fileMenu.addAction(saveConfigAct)
         fileMenu.addAction(saveConfigAsAct)
+        fileMenu.addSeparator()
         fileMenu.addAction(newMaskAct)
         fileMenu.addAction(exitAct)
 
@@ -58,6 +67,30 @@ class PySoloMainAppWindow(QMainWindow):
     def _open_new_mask_dlg(self):
         mask_editor = CreateMaskDlgWidget(self)
         mask_editor.exec_()
+
+    def _open_config(self):
+        options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
+        config_filename, _ = QFileDialog.getOpenFileName(self, 'Select config file',
+                                                         self._source_filename_txt.text(),
+                                                         filter='Config files (*.cfg);;All files (*)',
+                                                         options=options)
+        if config_filename:
+            self._config_filename = config_filename
+
+        print('!!!!! OPEN CONFIG', self._config_filename)
+
+    def _save_config(self, config_filename):
+        if config_filename is None:
+            # open file save dialog
+            options = QFileDialog.Options()
+            options |= QFileDialog.DontUseNativeDialog
+            config_fileName, _ = QFileDialog.getSaveFileName(self, 'Save config file', '',
+                                                             'Config Files (*.cfg);;All Files (*)', options=options)
+
+        if config_filename:
+            self._config_filename = config_filename
+
+        print('!!!! SAVE CONFIG', config_filename)
 
 
 class WidgetCommunicationChannels(QObject):
@@ -196,13 +229,13 @@ class CommonOptionsFormWidget(QWidget):
 
     def _select_source_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
-        fileName, _ = QFileDialog.getOpenFileName(self, 'Select source file',
+        filename, _ = QFileDialog.getOpenFileName(self, 'Select source file',
                                                   self._source_filename_txt.text(),
                                                   filter='Video files (*.avi *.mpeg *.mp4);;All files (*)',
                                                   options=options)
-        if fileName:
-            self._source_filename_txt.setText(fileName)
-            self._communication_channels.video_loaded_signal.emit(MovieFile(fileName))
+        if filename:
+            self._source_filename_txt.setText(filename)
+            self._communication_channels.video_loaded_signal.emit(MovieFile(filename))
 
     def _select_results_dir(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog | QFileDialog.ShowDirsOnly)
@@ -389,7 +422,7 @@ class CreateMaskDlgWidget(QDialog):
         layout.addWidget(self._cols_box, current_widget_row, 1)
         current_widget_row += 1
 
-        reg_ex = QRegExp("[0-9]+.?[0-9]{,2}")
+        reg_ex = QRegExp('[0-9]+.?[0-9]{,2}')
         mask_param_validator = QRegExpValidator(reg_ex)
 
         x1_lbl = QLabel('x1')
@@ -477,7 +510,8 @@ class CreateMaskDlgWidget(QDialog):
         # open the file dialog and save the mask
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
-        mask_fileName, _ = QFileDialog.getSaveFileName(self,"QFileDialog.getSaveFileName()","","All Files (*);;Mask Files (*.msk)", options=options)
+        mask_fileName, _ = QFileDialog.getSaveFileName(self, 'Save mask file', '', 'All Files (*);;Mask Files (*.msk)',
+                                                       options=options)
         if mask_fileName:
             # save mask to mask_fileName
             mask_params = {
