@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 
-import sys
-
 from PyQt5.QtCore import pyqtSlot, Qt
-from PyQt5.QtWidgets import (QApplication, QWidget, QPushButton, QHBoxLayout,
+from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox)
 
@@ -17,10 +15,10 @@ class CommonOptionsFormWidget(QWidget):
         self._communication_channels = communication_channels
         self._config = config
         self._max_monitored_areas = max_monitored_areas
-        self._initUI()
-        self._communication_channels.monitored_areas_count_signal.connect(self._config.set_monitored_areas_count)
+        self._init_ui()
+        self._init_event_handlers()
 
-    def _initUI(self):
+    def _init_ui(self):
         group_layout = QGridLayout()
 
         current_layout_row = 0
@@ -99,6 +97,9 @@ class CommonOptionsFormWidget(QWidget):
         layout.addWidget(groupBox)
         self.setLayout(layout)
 
+    def _init_event_handlers(self):
+        self._communication_channels.monitored_areas_count_signal.connect(self._config.set_monitored_areas_count)
+        
     def _select_source_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
         filename, _ = QFileDialog.getOpenFileName(self, 'Select source file',
@@ -151,10 +152,10 @@ class MonitoredAreaFormWidget(QWidget):
         super(MonitoredAreaFormWidget, self).__init__(parent)
         self._communication_channels = communication_channels
         self._config = config
-        self._initUI()
+        self._init_ui()
         communication_channels.selected_area_signal.connect(self._update_selected_area)
 
-    def _initUI(self):
+    def _init_ui(self):
         group_layout = QGridLayout()
 
         current_layout_row = 0
@@ -257,9 +258,9 @@ class FormWidget(QWidget):
 
     def __init__(self, parent, communication_channels, config):
         super(FormWidget, self).__init__(parent)
-        self._initUI(communication_channels, config)
+        self._init_ui(communication_channels, config)
 
-    def _initUI(self, communication_channels, config):
+    def _init_ui(self, communication_channels, config):
         layout = QGridLayout()
         commonOptionsFormWidget = CommonOptionsFormWidget(self, communication_channels, config)
         monitoredAreaFormWidget = MonitoredAreaFormWidget(self, communication_channels, config)

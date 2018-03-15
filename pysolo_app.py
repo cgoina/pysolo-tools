@@ -21,9 +21,9 @@ class PySoloMainAppWindow(QMainWindow):
         self._communication_channels = WidgetCommunicationChannels()
         self._config_filename = None
         self._config = ConfigOptions()
-        self._initUI()
+        self._init_ui()
 
-    def _initUI(self):
+    def _init_ui(self):
         self._init_widgets()
         self._init_menus()
         self.setWindowTitle('Fly Tracker')
@@ -41,6 +41,9 @@ class PySoloMainAppWindow(QMainWindow):
         saveConfigAsAct = QAction('Save &As', self)
         saveConfigAsAct.triggered.connect(self._save_config)
 
+        clearConfigAct = QAction('&Clear config', self)
+        clearConfigAct.triggered.connect(self._clear_config)
+
         newMaskAct = QAction('New &mask', self)
         newMaskAct.triggered.connect(self._open_new_mask_dlg)
 
@@ -51,6 +54,8 @@ class PySoloMainAppWindow(QMainWindow):
         fileMenu.addAction(loadConfigAct)
         fileMenu.addAction(saveConfigAct)
         fileMenu.addAction(saveConfigAsAct)
+        fileMenu.addSeparator()
+        fileMenu.addAction(clearConfigAct)
         fileMenu.addSeparator()
         fileMenu.addAction(newMaskAct)
         fileMenu.addAction(exitAct)
@@ -79,6 +84,7 @@ class PySoloMainAppWindow(QMainWindow):
             if not errors:
                 self._config_filename = config_filename
                 self._config = config
+                self._communication_channels.config_signal.emit(self._config)
             else:
                 self._config_filename = None
                 self._config = None
@@ -115,6 +121,11 @@ class PySoloMainAppWindow(QMainWindow):
     def _display_errors(self, title, errors):
         QMessageBox.critical(self, title, '\n'.join(errors))
 
+    def _clear_config(self):
+        self._config = ConfigOptions()
+        self._communication_channels.config_signal.emit(self._config)
+        self._update_status()
+
 
 class WidgetCommunicationChannels(QObject):
     video_loaded_signal = pyqtSignal(MovieFile)
@@ -132,10 +143,10 @@ class MonitorWidget(QWidget):
         self._image_height = image_height
         self._ratio = image_width / image_height
         self._image = QImage()
-        self._initUI()
+        self._init_ui()
         communication_channels.video_loaded_signal.connect(self.set_movie)
 
-    def _initUI(self):
+    def _init_ui(self):
         self.video_frame = QLabel()
         layout = QVBoxLayout()
         self.video_frame.setMinimumHeight(self._image_height)

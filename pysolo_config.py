@@ -31,12 +31,12 @@ class ConfigOptions:
     def get_monitored_areas(self):
         return self._monitored_areas[:self.monitored_areas_count]
 
-    def set_monitored_areas_count(self, monitor_areas_count):
-        if monitor_areas_count >= 0:
+    def set_monitored_areas_count(self, monitored_areas_count):
+        self.monitored_areas_count = monitored_areas_count
+        if self.monitored_areas_count >= 0:
             if len(self._monitored_areas) < self.monitored_areas_count:
                 for i in range(0, self.monitored_areas_count - len(self._monitored_areas)):
                     self.add_monitored_area(MonitoredAreaOptions())
-        self.monitored_areas_count = monitor_areas_count
 
     def validate(self):
         errors = []

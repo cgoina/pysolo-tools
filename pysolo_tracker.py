@@ -6,7 +6,7 @@ import sys
 
 from argparse import ArgumentParser
 from _datetime import datetime
-from pysolo_config import Config
+from pysolo_config import load_config
 from pysolo_video import (MovieFile, MonitorArea, process_image_frames)
 
 
@@ -40,27 +40,26 @@ def main():
         parser.exit(1, 'Missing config file\n')
 
     # load config file
-    config = Config()
-    config.load_config(args.config_file)
+    config, errors = load_config(args.config_file)
 
-    video_file = args.video_file or config.get_option('source')
+    video_file = args.video_file or config.source
     image_source = MovieFile(video_file,
                              start=args.start_frame,
                              step=args.frame_step,
                              end=args.end_frame,
-                             resolution=config.get_option('fullsize'))
+                             resolution=config.image_size)
 
     def create_monitor_area(monitor_index):
-        monitor_config = config.get_monitors().get(monitor_index)
-        monitor_area = MonitorArea(monitor_config.get('track_type'),
-                                   monitor_config.get('isSDMonitor'),
+        monitor_config_options = config.get_monitored_area(monitor_index)
+        monitor_area = MonitorArea(monitor_config_options.track_type,
+                                   monitor_config_options.sleep_deprived_flag,
                                    fps=image_source.get_fps(),
                                    acq_time=args.acq_time)
-        if monitor_config.get('tracked_rois_filter') is not None:
-            monitor_area.set_roi_filter(list(monitor_config.get('tracked_rois_filter')))
-        monitor_area.load_rois(config.get_monitors().get(monitor_index).get('mask_file'))
+        if monitor_config_options.tracked_rois_filter:
+            monitor_area.set_roi_filter(monitor_config_options.tracked_rois_filter)
+        monitor_area.load_rois(monitor_config_options.maskfile)
         monitor_area.set_output(
-            os.path.join(config.get_option('data_folder'), 'Monitor%02d.txt' % monitor_index)
+            os.path.join(config.data_folder, 'Monitor%02d.txt' % monitor_index)
         )
         return monitor_area
 

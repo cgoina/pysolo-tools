@@ -12,9 +12,9 @@ class CreateMaskDlgWidget(QDialog):
     def __init__(self, parent):
         super(CreateMaskDlgWidget, self).__init__(parent)
         self.setWindowTitle('MAsk Editor')
-        self._initUI()
+        self._init_ui()
 
-    def _initUI(self):
+    def _init_ui(self):
         layout = QGridLayout()
 
         area_location_lbl = QLabel('Area Location')
@@ -130,7 +130,10 @@ class CreateMaskDlgWidget(QDialog):
         # open the file dialog and save the mask
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
-        mask_fileName, _ = QFileDialog.getSaveFileName(self, 'Save mask file', '', 'All Files (*);;Mask Files (*.msk)',
+        mask_fileName, _ = QFileDialog.getSaveFileName(self,
+                                                       'Save mask file',
+                                                       '',
+                                                       'Mask Files (*.msk);;All Files (*)',
                                                        options=options)
         if mask_fileName:
             # save mask to mask_fileName

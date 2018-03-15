@@ -105,6 +105,8 @@ def main():
     parser = ArgumentParser(usage='prog [options]')
     parser.add_argument('-m', '--mask-file', dest='mask_file', metavar='MASK_FILE',
                         help='The full name of the mask file')
+    parser.add_argument('--rows', dest='rows', default=1, help='The number of rows')
+    parser.add_argument('--cols', dest='cols', default=32, help='The number of cols')
     parser.add_argument('-r', '--region', dest='region',
                         required=True,
                         choices=['upper_left', 'lower_left', 'upper_right', 'lower_right'],
@@ -112,11 +114,8 @@ def main():
 
     args = parser.parse_args()
 
-    rows = 1
-    columns = 14
-
     mask_params = get_mask_params(args.region)
-    create_mask(rows, columns, mask_params, args.mask_file)
+    create_mask(args.rows, args.cols, mask_params, args.mask_file)
 
 
 if __name__ == '__main__':
