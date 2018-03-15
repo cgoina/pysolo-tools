@@ -33,10 +33,10 @@ class ConfigOptions:
 
     def set_monitored_areas_count(self, monitor_areas_count):
         if monitor_areas_count >= 0:
-            self.monitored_areas_count = monitor_areas_count
             if len(self._monitored_areas) < self.monitored_areas_count:
                 for i in range(0, self.monitored_areas_count - len(self._monitored_areas)):
                     self.add_monitored_area(MonitoredAreaOptions())
+        self.monitored_areas_count = monitor_areas_count
 
     def validate(self):
         errors = []
@@ -173,7 +173,7 @@ def load_config(filename):
         monitored_area.aggregation_interval = get_value(monitored_area_section, 'aggregation_interval', default_value=60)
         monitored_area.aggregation_interval_units = get_value(monitored_area_section, 'aggregation_interval_units', default_value='frames')
 
-    return config, errors
+    return config, set(errors)
 
 
 def _convert_val(val):
@@ -200,6 +200,9 @@ def _convert_simple_val(val):
 
 def save_config(config, filename):
     config_parser = configparser.ConfigParser()
-    config_parser.read_dict(config._asdict())
-    with open(filename, 'w') as configfile:
-        config_parser.write(configfile)
+    errors = config.validate()
+    if not errors:
+        config_parser.read_dict(config._asdict())
+        with open(filename, 'w') as configfile:
+            config_parser.write(configfile)
+    return errors
