@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
-import cv2
 import sys
 
-from PyQt5.QtCore import pyqtSignal, pyqtSlot, QRect, QObject
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtCore import pyqtSignal, QObject
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
-                             QLabel, QFileDialog, QVBoxLayout, QAction, QMessageBox)
+                             QFileDialog, QAction, QMessageBox)
 
 from pysolo_config import load_config, ConfigOptions, save_config, MonitoredAreaOptions
 from pysolo_form_widget import FormWidget
@@ -87,8 +85,7 @@ class PySoloMainAppWindow(QMainWindow):
                 self._config = config
                 self._communication_channels.config_signal.emit(self._config)
             else:
-                self._config_filename = None
-                self._config = None
+                self._clear_config()
                 self._display_errors('Config read errors', errors)
 
         self._update_status()

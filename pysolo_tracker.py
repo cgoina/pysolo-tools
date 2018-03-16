@@ -3,9 +3,9 @@
 import logging.config
 import os
 import sys
-
-from argparse import ArgumentParser
 from _datetime import datetime
+from argparse import ArgumentParser
+
 from pysolo_config import load_config
 from pysolo_video import (MovieFile, MonitoredArea, process_image_frames)
 

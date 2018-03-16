@@ -3,7 +3,6 @@ from functools import partial
 
 import cv2
 import numpy as np
-
 from PyQt5.QtCore import pyqtSlot, QRect
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout)

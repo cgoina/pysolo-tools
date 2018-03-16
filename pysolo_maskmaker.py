@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import sys
-
 from argparse import ArgumentParser
+
 from pysolo_video import MonitoredArea
 
 

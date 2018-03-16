@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from PyQt5.QtCore import pyqtSlot, Qt, QRect
+from PyQt5.QtCore import pyqtSlot, Qt
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox)

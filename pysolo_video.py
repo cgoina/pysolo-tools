@@ -1,12 +1,11 @@
-import cv2
-import logging
-import numpy as np
-import os
 import _pickle as cPickle
-
+import logging
+import os
 from datetime import datetime, timedelta
 from os.path import dirname, exists
 
+import cv2
+import numpy as np
 
 _logger = logging.getLogger('tracker')
 
