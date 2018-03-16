@@ -178,9 +178,9 @@ class CommonOptionsFormWidget(QWidget):
         if area_index >= 0:
             selected_monitored_area = self._config.get_monitored_area(area_index)
         if selected_monitored_area is not None:
-            self._communication_channels.monitored_area_signal.emit(selected_monitored_area)
+            self._communication_channels.monitored_area_options_signal.emit(selected_monitored_area)
         else:
-            self._communication_channels.monitored_area_signal.emit(MonitoredAreaOptions())
+            self._communication_channels.monitored_area_options_signal.emit(MonitoredAreaOptions())
 
     @pyqtSlot(ConfigOptions)
     def _update_config(self, new_config):
@@ -312,7 +312,7 @@ class MonitoredAreaFormWidget(QWidget):
         # selected area
         self._communication_channels.selected_area_signal.connect(self._update_selected_area)
         # update monitored area
-        self._communication_channels.monitored_area_signal.connect(self._update_monitored_area)
+        self._communication_channels.monitored_area_options_signal.connect(self._update_monitored_area)
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)

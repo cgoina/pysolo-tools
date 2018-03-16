@@ -12,7 +12,7 @@ from pysolo_config import load_config, ConfigOptions, save_config, MonitoredArea
 from pysolo_form_widget import FormWidget
 from pysolo_image_widget import ImageWidget
 from pysolo_mask_widget import CreateMaskDlgWidget
-from pysolo_video import MovieFile
+from pysolo_video import MovieFile, MonitoredArea
 
 
 class PySoloMainAppWindow(QMainWindow):
@@ -71,7 +71,7 @@ class PySoloMainAppWindow(QMainWindow):
         self.setCentralWidget(main_widget)
 
     def _open_new_mask_dlg(self):
-        mask_editor = CreateMaskDlgWidget(self)
+        mask_editor = CreateMaskDlgWidget(self, self._communication_channels)
         mask_editor.exec_()
 
     def _open_config(self):
@@ -134,9 +134,9 @@ class WidgetCommunicationChannels(QObject):
     clear_video_signal = pyqtSignal()
     selected_area_signal = pyqtSignal(int)
     config_signal = pyqtSignal(ConfigOptions)
-    monitored_area_signal = pyqtSignal(MonitoredAreaOptions)
+    monitored_area_options_signal = pyqtSignal(MonitoredAreaOptions)
     maskfile_signal = pyqtSignal(str)
-
+    monitored_area_rois_signal = pyqtSignal(MonitoredArea)
 
 def main():
     app = QApplication(sys.argv)

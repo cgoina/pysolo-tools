@@ -36,7 +36,8 @@ class ImageWidget(QWidget):
     def _init_event_handlers(self, communication_channels):
         communication_channels.video_loaded_signal.connect(self._set_movie)
         communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
-        communication_channels.maskfile_signal.connect(self._display_rois)
+        communication_channels.maskfile_signal.connect(self._load_and_display_rois)
+        communication_channels.monitored_area_rois_signal.connect(self._display_rois)
 
     @pyqtSlot(MovieFile)
     def _set_movie(self, movie_file):
@@ -64,14 +65,18 @@ class ImageWidget(QWidget):
         self._video_frame.setPixmap(QPixmap.fromImage(self._image))
 
     @pyqtSlot(str)
-    def _display_rois(self, rois_mask_file):
-        if self._movie_file is None:
-            return # do nothing
+    def _load_and_display_rois(self, rois_mask_file):
         monitored_area = MonitoredArea()
         monitored_area.load_rois(rois_mask_file)
+        self._display_rois(monitored_area)
+
+    @pyqtSlot(MonitoredArea)
+    def _display_rois(self, monitored_area_rois):
+        if self._movie_file is None:
+            return # do nothing
         roi_image = np.zeros(self._image_frame.shape, np.uint8)
-        for roi_index, roi in enumerate(monitored_area.ROIS):
-            roi_array = np.array(monitored_area.roi_to_poly(roi, self._movie_file.get_scale()))
+        for roi in monitored_area_rois.ROIS:
+            roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._movie_file.get_scale()))
             cv2.polylines(roi_image, [roi_array], isClosed=True, color=[255, 255, 255])
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels(overlay)

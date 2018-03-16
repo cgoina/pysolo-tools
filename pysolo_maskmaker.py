@@ -56,7 +56,7 @@ def get_mask_params(area_location):
     return mask_params_by_area_location[area_location]
 
 
-def create_mask(n_rows, n_cols, mask_params, mask_filename):
+def create_mask(n_rows, n_cols, mask_params):
     x1 = mask_params['x1']
     x_span = mask_params['x_span']
     x_gap = mask_params['x_gap']
@@ -97,9 +97,7 @@ def create_mask(n_rows, n_cols, mask_params, mask_filename):
             bx = ax
             cx = ax + x_span
             dx = cx
-
-    arena.save_rois(mask_filename)
-
+    return arena
 
 def main():
     parser = ArgumentParser(usage='prog [options]')
@@ -115,7 +113,9 @@ def main():
     args = parser.parse_args()
 
     mask_params = get_mask_params(args.region)
-    create_mask(args.rows, args.cols, mask_params, args.mask_file)
+    arena = create_mask(args.rows, args.cols, mask_params)
+    arena.save_rois(args.mask_file)
+
 
 
 if __name__ == '__main__':

@@ -9,8 +9,9 @@ from pysolo_maskmaker import create_mask, get_mask_params
 
 class CreateMaskDlgWidget(QDialog):
 
-    def __init__(self, parent):
+    def __init__(self, parent, communication_channels):
         super(CreateMaskDlgWidget, self).__init__(parent)
+        self._communication_channels = communication_channels
         self.setWindowTitle('MAsk Editor')
         self._init_ui()
 
@@ -101,7 +102,11 @@ class CreateMaskDlgWidget(QDialog):
         current_widget_row += 2
 
         cancel_btn = QPushButton('Cancel')
+        overlay_btn = QPushButton('Overlay mask')
         save_btn = QPushButton('Save...')
+        layout.addWidget(overlay_btn, current_widget_row, 0, 1, 2)
+        current_widget_row += 2
+
         layout.addWidget(cancel_btn, current_widget_row, 0)
         layout.addWidget(save_btn, current_widget_row, 1)
 
@@ -110,9 +115,9 @@ class CreateMaskDlgWidget(QDialog):
 
         cancel_btn.clicked.connect(self.close)
         save_btn.clicked.connect(self._save_mask)
+        overlay_btn.clicked.connect(self._draw_mask)
 
         self.setLayout(layout)
-
 
     def _update_mask_params(self):
         mask_params = get_mask_params(self._area_location_choice.currentData())
@@ -150,5 +155,23 @@ class CreateMaskDlgWidget(QDialog):
             }
             n_rows = self._rows_box.value()
             n_cols = self._cols_box.value()
-            create_mask(n_rows, n_cols, mask_params, mask_fileName)
+            arena = create_mask(n_rows, n_cols, mask_params)
+            arena.save_rois(mask_fileName)
             self.close() # close if everything went well
+
+    def _draw_mask(self):
+        mask_params = {
+            'x1': float(self.x1_txt.text()),
+            'x_span': float(self.x_span_txt.text()),
+            'x_gap': float(self.x_gap_txt.text()),
+            'x_tilt': float(self.x_tilt_txt.text()),
+
+            'y1': float(self.y1_txt.text()),
+            'y_len': float(self.y_len_txt.text()),
+            'y_sep': float(self.y_sep_txt.text()),
+            'y_tilt': float(self.y_tilt_txt.text()),
+        }
+        n_rows = self._rows_box.value()
+        n_cols = self._cols_box.value()
+        arena = create_mask(n_rows, n_cols, mask_params)
+        self._communication_channels.monitored_area_rois_signal.emit(arena)
