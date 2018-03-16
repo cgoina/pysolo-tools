@@ -146,6 +146,7 @@ class MonitoredAreaOptions:
     def _asdict(self):
         return OrderedDict([
             ('maskfile', str(self.maskfile)),
+            ('track', str(self.track_flag)),
             ('tracktype', str(self.track_type)),
             ('issdmonitor', str(self.sleep_deprived_flag)),
             ('tracked_rois_filter', str(self.tracked_rois_filter)

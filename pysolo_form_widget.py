@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox)
 
-from pysolo_config import ConfigOptions
+from pysolo_config import ConfigOptions, MonitoredAreaOptions
 from pysolo_video import MovieFile
 
 
@@ -117,9 +117,11 @@ class CommonOptionsFormWidget(QWidget):
 
     def _update_source_filename(self, filename):
         if filename:
+            self._config.source = filename
             self._source_filename_txt.setText(filename)
             self._communication_channels.video_loaded_signal.emit(MovieFile(filename))
         else:
+            self._config.source = None
             self._source_filename_txt.setText('')
             self._communication_channels.clear_video_signal.emit()
 
@@ -172,21 +174,26 @@ class CommonOptionsFormWidget(QWidget):
         self._communication_channels.monitored_areas_count_signal.emit(new_areas_counter)
 
     def _update_selected_area(self, area_index):
-        pass
-        # if self._selected_area_choice.currentData() is not None:
-        #     self._communication_channels.selected_area_signal.emit(self._selected_area_choice.currentData() + 1)
+        selected_monitored_area = None
+        if area_index >= 0:
+            selected_monitored_area = self._config.get_monitored_area(area_index)
+        if selected_monitored_area is not None:
+            self._communication_channels.monitored_area_signal.emit(selected_monitored_area)
+        else:
+            self._communication_channels.monitored_area_signal.emit(MonitoredAreaOptions())
 
     @pyqtSlot(ConfigOptions)
-    def _update_ui(self, config):
+    def _update_ui(self, new_config):
+        self._config = new_config
         # update the video source
-        self._update_source_filename(config.source)
+        self._update_source_filename(self._config.source)
         # update the results folder
-        self._update_results_dir(config.data_folder)
+        self._update_results_dir(self._config.data_folder)
         # update the size
-        self._update_image_width(config.get_image_width())
-        self._update_image_height(config.get_image_height())
+        self._update_image_width(self._config.get_image_width())
+        self._update_image_height(self._config.get_image_height())
         # update the number of monitored areas
-        self._n_monitored_areas_box.setValue(config.monitored_areas_count)
+        self._n_monitored_areas_box.setValue(self._config.monitored_areas_count)
 
 
 class MonitoredAreaFormWidget(QWidget):
@@ -194,6 +201,7 @@ class MonitoredAreaFormWidget(QWidget):
     def __init__(self, parent, communication_channels, config):
         super(MonitoredAreaFormWidget, self).__init__(parent)
         self._config = config
+        self._monitored_area = MonitoredAreaOptions()
         self._init_ui()
         self._init_event_handlers(communication_channels)
 
@@ -227,22 +235,22 @@ class MonitoredAreaFormWidget(QWidget):
         current_layout_row += 1
 
         # track flag
-        self._track_flag = QCheckBox()
+        self._track_check = QCheckBox()
         track_flag_lbl = QLabel('Monitor area')
         track_flag_widget = QWidget()
         track_flag_layout = QHBoxLayout(track_flag_widget)
-        track_flag_layout.addWidget(self._track_flag)
+        track_flag_layout.addWidget(self._track_check)
         track_flag_layout.addWidget(track_flag_lbl, Qt.AlignLeft)
         group_layout.addWidget(track_flag_widget, current_layout_row, 0)
 
         current_layout_row += 1
 
         # sleep deprivation flag
-        self._sleep_deprivation_flag = QCheckBox()
+        self._sleep_deprivation_check = QCheckBox()
         sleep_deprivation_lbl = QLabel('Sleep deprivation')
         sleep_deprivationwidget = QWidget()
         sleep_deprivation_layout = QHBoxLayout(sleep_deprivationwidget)
-        sleep_deprivation_layout.addWidget(self._sleep_deprivation_flag)
+        sleep_deprivation_layout.addWidget(self._sleep_deprivation_check)
         sleep_deprivation_layout.addWidget(sleep_deprivation_lbl, Qt.AlignLeft)
         group_layout.addWidget(sleep_deprivationwidget, current_layout_row, 0)
         current_layout_row += 1
@@ -280,7 +288,12 @@ class MonitoredAreaFormWidget(QWidget):
     def _init_event_handlers(self, communication_channels):
         # source file name event handlers
         self._mask_filename_btn.clicked.connect(self._select_mask_file)
+        # track checkbox
+        self._track_check.stateChanged.connect(self._update_track_flag)
+        # sleep deprivation checkbox
+        self._sleep_deprivation_check.stateChanged.connect(self._update_sleep_deprivation_flag)
         communication_channels.selected_area_signal.connect(self._update_selected_area)
+        communication_channels.monitored_area_signal.connect(self._update_ui)
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -289,14 +302,38 @@ class MonitoredAreaFormWidget(QWidget):
                                                   filter='All files (*)',
                                                   options=options)
         if fileName:
-            self._mask_filename_txt.setText(fileName)
+            self._update_mask_filename(fileName)
+
+    def _update_mask_filename(self, filename):
+        if filename:
+            self._monitored_area.maskfile = filename
+            self._mask_filename_txt.setText(filename)
+        else:
+            self._monitored_area.maskfile = None
+            self._mask_filename_txt.setText('')
+
+    def _update_track_flag(self, val):
+        self._track_check.setCheckState(val)
+        self._monitored_area.track_flag = True if val == Qt.Checked else False
+
+    def _update_sleep_deprivation_flag(self, val):
+        self._sleep_deprivation_check.setCheckState(val)
+        self._monitored_area.sleep_deprived_flag = True if val == Qt.Checked else False
 
     @pyqtSlot(int)
     def _update_selected_area(self, area_index):
-        if area_index >= 0:
+        if area_index < 0:
             self.setDisabled(True)
         else:
             self.setDisabled(False)
+
+    @pyqtSlot(MonitoredAreaOptions)
+    def _update_ui(self, ma):
+        self._monitored_area = ma
+        # update mask filename control
+        self._update_mask_filename(self._monitored_area.maskfile)
+        self._update_track_flag(Qt.Checked if self._monitored_area.track_flag else Qt.Unchecked)
+        self._update_sleep_deprivation_flag(Qt.Checked if self._monitored_area.sleep_deprived_flag else Qt.Unchecked)
 
 
 class FormWidget(QWidget):
