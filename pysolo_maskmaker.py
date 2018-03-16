@@ -3,7 +3,7 @@
 import sys
 
 from argparse import ArgumentParser
-from pysolo_video import MonitorArea
+from pysolo_video import MonitoredArea
 
 
 def get_mask_params(area_location):
@@ -67,7 +67,7 @@ def create_mask(n_rows, n_cols, mask_params, mask_filename):
     y_sep = mask_params['y_sep']
     y_tilt = mask_params['y_tilt']
 
-    arena = MonitorArea()
+    arena = MonitoredArea()
     for col in range(0, n_cols):  # x-coordinates change through columns
         ay = y1 + col * y_tilt  # reset y-coordinate start of col
         by = ay + y_len

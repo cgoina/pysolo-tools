@@ -135,6 +135,7 @@ class WidgetCommunicationChannels(QObject):
     selected_area_signal = pyqtSignal(int)
     config_signal = pyqtSignal(ConfigOptions)
     monitored_area_signal = pyqtSignal(MonitoredAreaOptions)
+    maskfile_signal = pyqtSignal(str)
 
 
 def main():

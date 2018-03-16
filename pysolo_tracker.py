@@ -7,7 +7,7 @@ import sys
 from argparse import ArgumentParser
 from _datetime import datetime
 from pysolo_config import load_config
-from pysolo_video import (MovieFile, MonitorArea, process_image_frames)
+from pysolo_video import (MovieFile, MonitoredArea, process_image_frames)
 
 
 def main():
@@ -51,17 +51,17 @@ def main():
 
     def create_monitor_area(monitor_index):
         monitor_config_options = config.get_monitored_area(monitor_index)
-        monitor_area = MonitorArea(monitor_config_options.track_type,
-                                   monitor_config_options.sleep_deprived_flag,
-                                   fps=image_source.get_fps(),
-                                   acq_time=args.acq_time)
+        monitored_area = MonitoredArea(monitor_config_options.track_type,
+                                     monitor_config_options.sleep_deprived_flag,
+                                     fps=image_source.get_fps(),
+                                     acq_time=args.acq_time)
         if monitor_config_options.tracked_rois_filter:
-            monitor_area.set_roi_filter(monitor_config_options.tracked_rois_filter)
-        monitor_area.load_rois(monitor_config_options.maskfile)
-        monitor_area.set_output(
+            monitored_area.set_roi_filter(monitor_config_options.tracked_rois_filter)
+        monitored_area.load_rois(monitor_config_options.maskfile)
+        monitored_area.set_output(
             os.path.join(config.data_folder, 'Monitor%02d.txt' % monitor_index)
         )
-        return monitor_area
+        return monitored_area
 
     process_image_frames(image_source, [create_monitor_area(i) for i in [0, 1, 2]])
 

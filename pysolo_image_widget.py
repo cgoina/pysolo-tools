@@ -2,11 +2,13 @@
 from functools import partial
 
 import cv2
+import numpy as np
+
 from PyQt5.QtCore import pyqtSlot, QRect
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout)
 
-from pysolo_video import MovieFile
+from pysolo_video import MovieFile, MonitoredArea
 
 
 class ImageWidget(QWidget):
@@ -15,6 +17,8 @@ class ImageWidget(QWidget):
         super(ImageWidget, self).__init__(parent)
         self._image_width = image_width
         self._image_height = image_height
+        self._movie_file = None
+        self._image_frame = None
         self._ratio = image_width / image_height
         self._image = QImage()
         self._init_ui()
@@ -30,20 +34,22 @@ class ImageWidget(QWidget):
         self.setLayout(layout)
 
     def _init_event_handlers(self, communication_channels):
-        communication_channels.video_loaded_signal.connect(self.set_movie)
-        communication_channels.clear_video_signal.connect(partial(self.set_movie, None))
+        communication_channels.video_loaded_signal.connect(self._set_movie)
+        communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
+        communication_channels.maskfile_signal.connect(self._display_rois)
 
     @pyqtSlot(MovieFile)
-    def set_movie(self, movie_file):
+    def _set_movie(self, movie_file):
         self._movie_file = movie_file
         if self._movie_file is not None:
-            _, _, image = self._movie_file.get_image()
-            self.update_image(image)
+            _, _, self._image_frame = self._movie_file.get_image()
+            self._update_image_pixels(self._image_frame)
         else:
+            self._image_frame = None
             self._image = QImage()
             self._video_frame.setPixmap(QPixmap.fromImage(self._image))
 
-    def update_image(self, image):
+    def _update_image_pixels(self, image):
         color_swapped_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         scalef = self._image_height / image.shape[1]
         image_ratio = image.shape[0] / image.shape[1]
@@ -56,3 +62,16 @@ class ImageWidget(QWidget):
                              color_swapped_image.shape[1],
                              QImage.Format_RGB888)
         self._video_frame.setPixmap(QPixmap.fromImage(self._image))
+
+    @pyqtSlot(str)
+    def _display_rois(self, rois_mask_file):
+        if self._movie_file is None:
+            return # do nothing
+        monitored_area = MonitoredArea()
+        monitored_area.load_rois(rois_mask_file)
+        roi_image = np.zeros(self._image_frame.shape, np.uint8)
+        for roi_index, roi in enumerate(monitored_area.ROIS):
+            roi_array = np.array(monitored_area.roi_to_poly(roi, self._movie_file.get_scale()))
+            cv2.polylines(roi_image, [roi_array], isClosed=True, color=[255, 255, 255])
+        overlay = cv2.bitwise_xor(self._image_frame, roi_image)
+        self._update_image_pixels(overlay)

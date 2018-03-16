@@ -11,7 +11,7 @@ from os.path import dirname, exists
 _logger = logging.getLogger('tracker')
 
 
-class MonitorArea():
+class MonitoredArea():
     """
     The arena defines the space where the flies move
     Carries information about the ROI (coordinates defining each vial) and
@@ -352,13 +352,16 @@ class ImageSource():
         self._size = size
 
     def get_scale(self):
-        if self._size is not None and self._resolution is not None:
+        if self._size is not None and self._resolution and self._resolution[0] and self._resolution[1]:
             return (self._size[0] / self._resolution[0], self._size[1] / self._resolution[1])
         else:
             return None
 
     def get_size(self):
         return self._size
+
+    def set_resolution(self, width, height):
+        self._resolution = (width, height)
 
     def get_image(self):
         pass
@@ -455,7 +458,7 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
-def process_image_frames(image_source, monitor_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21), gaussian_sigma=1):
+def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21), gaussian_sigma=1):
     previous_frame = None
     moving_average = None
 
@@ -491,35 +494,35 @@ def process_image_frames(image_source, monitor_areas, moving_alpha=0.1, gaussian
 
         cv2.imwrite('flyblobs-%d.jpg' % next_frame_res[1], binary_image)
 
-        for area_index, monitor_area in enumerate(monitor_areas):
-            for roi_index, roi in enumerate(monitor_area.ROIS):
-                if monitor_area.is_roi_trackable(roi_index):
-                    process_roi(binary_image, next_frame_res[1], monitor_area, roi, area_index, roi_index, image_source.get_scale())
+        for area_index, monitored_area in enumerate(monitored_areas):
+            for roi_index, roi in enumerate(monitored_area.ROIS):
+                if monitored_area.is_roi_trackable(roi_index):
+                    process_roi(binary_image, next_frame_res[1], monitored_area, roi, area_index, roi_index, image_source.get_scale())
 
             # prepare the frame coordinates buffer for the next frame
-            if monitor_area.update_frame_activity(frame_time_pos):
+            if monitored_area.update_frame_activity(frame_time_pos):
                 # filled the data buffers
-                monitor_area.write_activity(frame_time_pos, scale=image_source.get_scale())
+                monitored_area.write_activity(frame_time_pos, scale=image_source.get_scale())
 
         previous_frame = grey_image
 
     # write the remaining activity
-    for area_index, monitor_area in enumerate(monitor_areas):
-        monitor_area.write_activity(frame_time_pos, scale=image_source.get_scale())
+    for area_index, monitored_area in enumerate(monitored_areas):
+        monitored_area.write_activity(frame_time_pos, scale=image_source.get_scale())
 
     return True
 
 
-def setRoi(image, roiMsk, roi):
-    cv2.fillPoly(roiMsk, [roi], color=[255, 255, 255])
+def draw_roi(roi_mask, roi):
+    cv2.fillPoly(roi_mask, [roi], color=[255, 255, 255])
 
 
-def process_roi(image, image_index, monitor_area, roi, monitor_area_index, roi_index, scalef):
-    roiMsk = np.zeros(image.shape, np.uint8)
-    (offset_x, offset_y), _ = monitor_area.roi_to_rect(roi, scalef)
-    setRoi(image, roiMsk, np.array(monitor_area.roi_to_poly(roi, scalef)))
+def process_roi(image, image_index, monitored_area, roi, monitor_area_index, roi_index, scalef):
+    roi_mask = np.zeros(image.shape, np.uint8)
+    (offset_x, offset_y), _ = monitored_area.roi_to_rect(roi, scalef)
+    draw_roi(roi_mask, np.array(monitored_area.roi_to_poly(roi, scalef)))
 
-    image_roi = cv2.bitwise_and(image, image, mask=roiMsk)
+    image_roi = cv2.bitwise_and(image, image, mask=roi_mask)
     cv2.imwrite('masked-%d-%d-%d.jpg' % (image_index, monitor_area_index, roi_index), image_roi)
     # get the contours relative to the upper left corner of the ROI
     fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE, offset=(-offset_x, -offset_y))
@@ -539,4 +542,4 @@ def process_roi(image, image_index, monitor_area, roi, monitor_area_index, roi_i
 
         if area > 400 * scalef[0] * scalef[1]:
             fly_coords = None
-    return monitor_area.add_fly_coords(roi_index, fly_coords)
+    return monitored_area.add_fly_coords(roi_index, fly_coords)

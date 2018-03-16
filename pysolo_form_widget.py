@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from PyQt5.QtCore import pyqtSlot, Qt
+from PyQt5.QtCore import pyqtSlot, Qt, QRect
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox)
@@ -118,7 +118,8 @@ class CommonOptionsFormWidget(QWidget):
         if filename:
             self._config.source = filename
             self._source_filename_txt.setText(filename)
-            self._communication_channels.video_loaded_signal.emit(MovieFile(filename))
+            image_size = (self._config.get_image_width(), self._config.get_image_height())
+            self._communication_channels.video_loaded_signal.emit(MovieFile(filename, resolution=image_size))
         else:
             self._config.source = None
             self._source_filename_txt.setText('')
@@ -199,9 +200,10 @@ class MonitoredAreaFormWidget(QWidget):
 
     def __init__(self, parent, communication_channels):
         super(MonitoredAreaFormWidget, self).__init__(parent)
+        self._communication_channels = communication_channels
         self._monitored_area = MonitoredAreaOptions()
         self._init_ui()
-        self._init_event_handlers(communication_channels)
+        self._init_event_handlers()
 
     def _init_ui(self):
         group_layout = QGridLayout()
@@ -212,11 +214,16 @@ class MonitoredAreaFormWidget(QWidget):
         self._mask_filename_txt.setDisabled(True)
         mask_filename_lbl = QLabel('Select mask file')
         self._mask_filename_btn = QPushButton('Open...')
+        self._show_mask_btn = QPushButton('Show')
         # add the mask filename control to the layout
         group_layout.addWidget(mask_filename_lbl, current_layout_row, 0)
         current_layout_row += 1
         group_layout.addWidget(self._mask_filename_txt, current_layout_row, 0)
-        group_layout.addWidget(self._mask_filename_btn, current_layout_row, 1)
+        mask_buttons = QWidget()
+        mask_buttons_layout = QHBoxLayout(mask_buttons)
+        mask_buttons_layout.addWidget(self._mask_filename_btn)
+        mask_buttons_layout.addWidget(self._show_mask_btn)
+        group_layout.addWidget(mask_buttons, current_layout_row, 1)
         current_layout_row += 1
 
         # track type
@@ -285,9 +292,11 @@ class MonitoredAreaFormWidget(QWidget):
         layout.addWidget(groupBox)
         self.setLayout(layout)
 
-    def _init_event_handlers(self, communication_channels):
+    def _init_event_handlers(self):
         # source file name event handlers
         self._mask_filename_btn.clicked.connect(self._select_mask_file)
+        # show mask
+        self._show_mask_btn.clicked.connect(self._display_mask)
         # track type
         self._track_type_choice.currentIndexChanged.connect(self._update_track_type)
         # track checkbox
@@ -301,9 +310,9 @@ class MonitoredAreaFormWidget(QWidget):
         # roi filter
         self._roi_filter_txt.textChanged.connect(self._update_roi_filter)
         # selected area
-        communication_channels.selected_area_signal.connect(self._update_selected_area)
+        self._communication_channels.selected_area_signal.connect(self._update_selected_area)
         # update monitored area
-        communication_channels.monitored_area_signal.connect(self._update_monitored_area)
+        self._communication_channels.monitored_area_signal.connect(self._update_monitored_area)
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -314,13 +323,18 @@ class MonitoredAreaFormWidget(QWidget):
         if fileName:
             self._update_mask_filename(fileName)
 
+    def _display_mask(self):
+        self._communication_channels.maskfile_signal.emit(self._monitored_area.maskfile)
+
     def _update_mask_filename(self, filename):
         if filename:
             self._monitored_area.maskfile = filename
             self._mask_filename_txt.setText(filename)
+            self._show_mask_btn.setDisabled(False)
         else:
             self._monitored_area.maskfile = None
             self._mask_filename_txt.setText('')
+            self._show_mask_btn.setDisabled(True)
 
     def _update_track_type(self, index):
         self._monitored_area.track_type = index

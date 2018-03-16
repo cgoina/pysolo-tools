@@ -42,7 +42,7 @@ class CreateMaskDlgWidget(QDialog):
         layout.addWidget(self._cols_box, current_widget_row, 1)
         current_widget_row += 1
 
-        reg_ex = QRegExp('[0-9]+.?[0-9]{,2}')
+        reg_ex = QRegExp('(-)?[0-9]+.?[0-9]{,2}')
         mask_param_validator = QRegExpValidator(reg_ex)
 
         x1_lbl = QLabel('x1')
