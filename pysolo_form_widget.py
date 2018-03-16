@@ -300,6 +300,8 @@ class MonitoredAreaFormWidget(QWidget):
         self._aggregation_interval_box.valueChanged.connect(self._update_aggregation_interval)
         # aggregation interval units
         self._aggregation_interval_units_choice.currentIndexChanged.connect(self._update_aggregation_interval_units)
+        # roi filter
+        self._roi_filter_txt.textChanged.connect(self._update_roi_filter)
         communication_channels.selected_area_signal.connect(self._update_selected_area)
         communication_channels.monitored_area_signal.connect(self._update_ui)
 
@@ -362,6 +364,13 @@ class MonitoredAreaFormWidget(QWidget):
             self._monitored_area.aggregation_interval_units = 'frames'
         self._aggregation_interval_units_choice.setCurrentIndex(index)
 
+    def _update_roi_filter(self, roi_filter_str):
+        if roi_filter_str:
+            self._roi_filter_txt.setText(roi_filter_str)
+        else:
+            self._roi_filter_txt.setText('')
+        self._monitored_area.set_rois_filter_as_str(roi_filter_str)
+
     @pyqtSlot(int)
     def _update_selected_area(self, area_index):
         if area_index < 0:
@@ -379,6 +388,7 @@ class MonitoredAreaFormWidget(QWidget):
         self._update_sleep_deprivation_flag(Qt.Checked if self._monitored_area.sleep_deprived_flag else Qt.Unchecked)
         self._update_aggregation_interval(self._monitored_area.aggregation_interval)
         self._update_aggregation_interval_units(-1, units=self._monitored_area.aggregation_interval_units)
+        self._update_roi_filter(self._monitored_area.get_rois_filter_as_str())
 
 
 class FormWidget(QWidget):

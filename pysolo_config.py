@@ -127,6 +127,19 @@ class MonitoredAreaOptions:
         else: # default to frames
             return int(self.aggregation_interval)
 
+    def get_rois_filter_as_str(self):
+        if self.tracked_rois_filter is None:
+            return ''
+        else:
+            return ', '.join([str(roi) for roi in self.tracked_rois_filter])
+
+    def set_rois_filter_as_str(self, rois_filter_str):
+        if rois_filter_str and rois_filter_str.strip():
+            vals = [val for val in rois_filter_str.split(',') if val and val.strip()]
+            self.tracked_rois_filter = [int(val) for val in vals]
+        else:
+            self.tracked_rois_filter = None
+
     def validate(self):
         errors = []
         if not self.maskfile:
@@ -211,7 +224,7 @@ def load_config(filename):
 
 
 def _convert_val(val):
-    vals = val.split(',')
+    vals = [v for v in val.split(',') if v and v.strip()]
     if len(vals) == 1:
         return _convert_simple_val(val)
     else:
