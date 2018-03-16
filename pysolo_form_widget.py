@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import os
 from PyQt5.QtCore import pyqtSlot, Qt, QRegExp
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
@@ -7,7 +6,7 @@ from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QGroupBox, QCheckBox)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
-from pysolo_video import MovieFile, MonitoredArea, process_image_frames
+from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas
 
 
 class CommonOptionsFormWidget(QWidget):
@@ -508,26 +507,9 @@ class TrackerWidget(QWidget):
     def _start_tracker(self):
         self._start_btn.setDisabled(True)
         self._cancel_btn.setDisabled(False)
-        image_source = MovieFile(self._config.source,
-                                 start=self._start_frame,
-                                 end=self._end_frame,
-                                 resolution=self._config.image_size)
-
-        def create_monitored_area(configured_area_index, configured_area):
-            ma = MonitoredArea(track_type=configured_area.track_type,
-                          sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
-                          aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
-                          acq_time=self._config.acq_time)
-            ma.set_roi_filter(configured_area.tracked_rois_filter)
-            ma.load_rois(configured_area.maskfile)
-            ma.set_output(
-                os.path.join(self._config.data_folder, 'Monitor%02d.txt' % configured_area_index)
-            )
-            return ma
-
-        monitored_areas = [create_monitored_area(area_index, configured_area)
-                           for area_index, configured_area in enumerate(self._config.get_monitored_areas())
-                           if configured_area.track_flag]
+        image_source, monitored_areas = prepare_monitored_areas(self._config.source,
+                                                                start_frame=self._start_frame,
+                                                                end_frame=self._end_frame)
 
         process_image_frames(image_source, monitored_areas)
 

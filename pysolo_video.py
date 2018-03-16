@@ -464,6 +464,29 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
+def prepare_monitored_areas(config, start_frame=None, end_frame=None):
+    image_source = MovieFile(config.source,
+                     start=start_frame,
+                     end=end_frame,
+                     resolution=config.image_size)
+
+    def create_monitored_area(configured_area_index, configured_area):
+        ma = MonitoredArea(track_type=configured_area.track_type,
+                           sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
+                           aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
+                           acq_time=config.acq_time)
+        ma.set_roi_filter(configured_area.tracked_rois_filter)
+        ma.load_rois(configured_area.maskfile)
+        ma.set_output(
+            os.path.join(config.data_folder, 'Monitor%02d.txt' % configured_area_index)
+        )
+        return ma
+
+    return image_source, [create_monitored_area(area_index, configured_area)
+                          for area_index, configured_area in enumerate(config.get_monitored_areas())
+                          if configured_area.track_flag]
+
+
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21), gaussian_sigma=1):
     previous_frame = None
     moving_average = None
