@@ -102,9 +102,8 @@ class CommonOptionsFormWidget(QWidget):
         self._n_monitored_areas_box.valueChanged.connect(self._update_number_of_areas)
         # current selected area control event handlers
         self._selected_area_choice.currentIndexChanged.connect(self._update_selected_area)
-        # monitored areas count
-        self._communication_channels.monitored_areas_count_signal.connect(self._config.set_monitored_areas_count)
-        self._communication_channels.config_signal.connect(self._update_ui)
+        # update config
+        self._communication_channels.config_signal.connect(self._update_config)
         
     def _select_source_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -150,6 +149,8 @@ class CommonOptionsFormWidget(QWidget):
         self._max_width_box.setValue(val)
 
     def _update_number_of_areas(self, new_areas_counter):
+        # update the config
+        self._config.set_monitored_areas_count(new_areas_counter)
         # update selected region control
         if new_areas_counter == 0:
             n_areas = self._selected_area_choice.count()
@@ -170,8 +171,6 @@ class CommonOptionsFormWidget(QWidget):
                 self._communication_channels.selected_area_signal.emit(0)
             elif self._selected_area_choice.currentData() >= new_areas_counter:
                 self._communication_channels.selected_area_signal.emit(new_areas_counter - 1)
-        # send the message that the UI updated the number of monitored regions
-        self._communication_channels.monitored_areas_count_signal.emit(new_areas_counter)
 
     def _update_selected_area(self, area_index):
         selected_monitored_area = None
@@ -183,7 +182,7 @@ class CommonOptionsFormWidget(QWidget):
             self._communication_channels.monitored_area_signal.emit(MonitoredAreaOptions())
 
     @pyqtSlot(ConfigOptions)
-    def _update_ui(self, new_config):
+    def _update_config(self, new_config):
         self._config = new_config
         # update the video source
         self._update_source_filename(self._config.source)
@@ -302,8 +301,12 @@ class MonitoredAreaFormWidget(QWidget):
         self._aggregation_interval_units_choice.currentIndexChanged.connect(self._update_aggregation_interval_units)
         # roi filter
         self._roi_filter_txt.textChanged.connect(self._update_roi_filter)
+        # selected area
         communication_channels.selected_area_signal.connect(self._update_selected_area)
-        communication_channels.monitored_area_signal.connect(self._update_ui)
+        # update config
+        communication_channels.config_signal.connect(self._update_monitored_area_config)
+        # update monitored area
+        communication_channels.monitored_area_signal.connect(self._update_monitored_area)
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -378,8 +381,12 @@ class MonitoredAreaFormWidget(QWidget):
         else:
             self.setDisabled(False)
 
+    @pyqtSlot(ConfigOptions)
+    def _update_monitored_area_config(self, new_config):
+        self._config = new_config
+
     @pyqtSlot(MonitoredAreaOptions)
-    def _update_ui(self, ma):
+    def _update_monitored_area(self, ma):
         self._monitored_area = ma
         # update mask filename control
         self._update_mask_filename(self._monitored_area.maskfile)

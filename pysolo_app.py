@@ -133,7 +133,6 @@ class WidgetCommunicationChannels(QObject):
     video_loaded_signal = pyqtSignal(MovieFile)
     clear_video_signal = pyqtSignal()
     selected_area_signal = pyqtSignal(int)
-    monitored_areas_count_signal = pyqtSignal(int)
     config_signal = pyqtSignal(ConfigOptions)
     monitored_area_signal = pyqtSignal(MonitoredAreaOptions)
 

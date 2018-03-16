@@ -78,7 +78,7 @@ class ConfigOptions:
             errors.append('Number of monitored areas cannot be greater than the number of configured areas')
 
         def monitored_area_validation(monitored_area, monitored_area_index):
-            return ['Region %d: %s' % (monitored_area_index, err) for err in monitored_area.validate()]
+            return ['Region %d: %s' % (monitored_area_index + 1, err) for err in monitored_area.validate()]
 
         return errors + list(chain.from_iterable([monitored_area_validation(a, ai)
                                                   for ai, a in enumerate(self.get_monitored_areas())]))
