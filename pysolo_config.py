@@ -1,6 +1,8 @@
 import configparser
 import os
+
 from collections import OrderedDict
+from datetime import datetime
 from itertools import chain
 
 
@@ -8,10 +10,26 @@ class ConfigOptions:
 
     def __init__(self):
         self.source = None
+        self.acq_time = None
         self.data_folder = None
         self.image_size = None
         self.monitored_areas_count = 0
         self._monitored_areas = []
+
+    def get_acq_time_as_str(self):
+        if self.acq_time:
+            return datetime.strftime(self.acq_time, '%Y-%m-%d %H:%M:%S')
+        else:
+            return ''
+
+    def set_acq_time_from_str(self, time_str):
+        if time_str and time_str.strip():
+            try:
+                self.acq_time = datetime.strptime(time_str.strip(), '%Y-%m-%d %H:%M:%S')
+            except:
+                pass # ignore the exception
+        else:
+            self.acq_time = None
 
     def get_image_width(self):
         if self.image_size is None:
@@ -89,6 +107,7 @@ class ConfigOptions:
                 'Options',
                 OrderedDict([
                     ('source', self.source),
+                    ('acq_time', self.get_acq_time_as_str()),
                     ('data_folder', self.data_folder),
                     ('fullsize', ', '.join([str(x) for x in self.image_size])),
                     ('monitors', str(self.monitored_areas_count))
@@ -109,8 +128,8 @@ class MonitoredAreaOptions:
         self.track_type = 0
         self.sleep_deprived_flag = False
         self.tracked_rois_filter = None
-        self.aggregation_interval = 60 # default to 60 frames
-        self.aggregation_interval_units = 'frames' # valid values: frames, sec, min
+        self.aggregation_interval = 60  # default to 60 frames
+        self.aggregation_interval_units = 'frames'  # valid values: frames, sec, min
 
     def get_aggregation_interval_in_frames(self, fps):
         """
@@ -119,12 +138,12 @@ class MonitoredAreaOptions:
         :return:
         """
         if self.aggregation_interval is None:
-            return 1 # default to 1 if no aggregation interval is specified
-        if self.aggregation_interval_units == 'sec': # seconds
+            return 1  # default to 1 if no aggregation interval is specified
+        if self.aggregation_interval_units == 'sec':  # seconds
             return int(self.aggregation_interval * fps)
-        elif self.aggregation_interval_units == 'min': # minutes
+        elif self.aggregation_interval_units == 'min':  # minutes
             return int(self.aggregation_interval * 60 * fps)
-        else: # default to frames
+        else:  # default to frames
             return int(self.aggregation_interval)
 
     def get_rois_filter_as_str(self):
@@ -146,7 +165,7 @@ class MonitoredAreaOptions:
             errors.append('Mask file has not been set')
         elif not os.path.exists(self.maskfile):
             # file does not exist
-            errors.append('Mask file %s does not exist' %  self.maskfile)
+            errors.append('Mask file %s does not exist' % self.maskfile)
         if self.track_type not in [0, 1, 2]:
             errors.append('Track type: %d is not a valid value' % self.track_type)
         if self.aggregation_interval <= 0:
@@ -163,8 +182,8 @@ class MonitoredAreaOptions:
             ('tracktype', str(self.track_type)),
             ('issdmonitor', str(self.sleep_deprived_flag)),
             ('tracked_rois_filter', str(self.tracked_rois_filter)
-                    if self.tracked_rois_filter is None
-                    else ', '.join([str(r) for r in self.tracked_rois_filter])),
+            if self.tracked_rois_filter is None
+            else ', '.join([str(r) for r in self.tracked_rois_filter])),
             ('aggregation_interval', self.aggregation_interval),
             ('aggregation_interval_units', self.aggregation_interval_units)
         ])
@@ -183,7 +202,7 @@ def load_config(filename):
 
     config = ConfigOptions()
 
-    def get_value(section, key, default_value=None, required=True):
+    def get_value(section, key, default_value=None, required=True, use_default_converter=True):
         if not config_parser.has_section(section):
             errors.append('Section %s not found in file %s' % (section, filename))
             return None
@@ -196,9 +215,10 @@ def load_config(filename):
                 return None
 
         val = config_parser.get(section, key)
-        return _convert_val(val)
+        return _convert_val(val) if use_default_converter else val
 
     config.source = get_value('Options', 'source')
+    config.set_acq_time_from_str(get_value('Options', 'acq_time', required=False, use_default_converter=False))
     config.data_folder = get_value('Options', 'data_folder')
     config.image_size = get_value('Options', 'fullsize')
     config.set_monitored_areas_count(get_value('Options', 'monitors'))
@@ -217,8 +237,10 @@ def load_config(filename):
             monitored_area.tracked_rois_filter = [tracked_rois_filter]
         elif tracked_rois_filter is not None:
             errors.append('Cannot handle tracked ROI filter: {arg}'.format(arg=tracked_rois_filter))
-        monitored_area.aggregation_interval = get_value(monitored_area_section, 'aggregation_interval', default_value=60)
-        monitored_area.aggregation_interval_units = get_value(monitored_area_section, 'aggregation_interval_units', default_value='frames')
+        monitored_area.aggregation_interval = get_value(monitored_area_section, 'aggregation_interval',
+                                                        default_value=60)
+        monitored_area.aggregation_interval_units = get_value(monitored_area_section, 'aggregation_interval_units',
+                                                              default_value='frames')
 
     return config, set(errors)
 

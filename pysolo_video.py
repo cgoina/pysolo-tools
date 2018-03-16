@@ -19,7 +19,13 @@ class MonitoredArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
-    def __init__(self, track_type=1, sleep_deprivation_flag=0, datawindow_size=10, fps=1, acq_time=None):
+    def __init__(self,
+                 track_type=1,
+                 sleep_deprivation_flag=0,
+                 aggregated_frames=1,
+                 datawindow_size=10,
+                 fps=1,
+                 acq_time=None):
         """
         :param track_type: track type
         :param sleep_deprivation_flag: sleep deprivation flag
@@ -31,6 +37,7 @@ class MonitoredArea():
         self._beams = [] # beams: absolute coordinates
         self._points_to_track = []
         self._datawindow_size = datawindow_size
+        self._aggregated_frames = aggregated_frames
         self._fps = fps
         self._acq_time = datetime.now() if acq_time is None else acq_time
         self._roi_filter = None

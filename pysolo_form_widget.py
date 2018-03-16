@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-
-from PyQt5.QtCore import pyqtSlot, Qt
+import os
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp
+from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
-from pysolo_video import MovieFile
+from pysolo_video import MovieFile, MonitoredArea, process_image_frames
 
 
 class CommonOptionsFormWidget(QWidget):
@@ -35,6 +36,14 @@ class CommonOptionsFormWidget(QWidget):
         group_layout.addWidget(self._source_filename_btn, current_layout_row, 1)
         current_layout_row += 1
 
+        # acquisition time
+        acq_time_lbl = QLabel('Acquisition time')
+        self._acq_time_txt = QLineEdit()
+        group_layout.addWidget(acq_time_lbl, current_layout_row, 0)
+        current_layout_row += 1
+        group_layout.addWidget(self._acq_time_txt, current_layout_row, 0)
+        current_layout_row += 1
+
         # results directory widgets
         self._results_dir_txt = QLineEdit()
         self._results_dir_txt.setDisabled(True)
@@ -48,7 +57,7 @@ class CommonOptionsFormWidget(QWidget):
         current_layout_row += 1
 
         # size
-        size_lbl = QLabel('Size')
+        size_lbl = QLabel('Size (Width x Height)')
         group_layout.addWidget(size_lbl, current_layout_row, 0)
         current_layout_row += 1
         size_widget = QWidget()
@@ -93,6 +102,7 @@ class CommonOptionsFormWidget(QWidget):
     def _init_event_handlers(self):
         # source file name event handlers
         self._source_filename_btn.clicked.connect(self._select_source_file)
+        self._acq_time_txt.textChanged.connect(self._update_acq_time)
         # results directory event handlers
         self._results_dir_btn.clicked.connect(self._select_results_dir)
         # image size controls event handlers
@@ -103,7 +113,7 @@ class CommonOptionsFormWidget(QWidget):
         # current selected area control event handlers
         self._selected_area_choice.currentIndexChanged.connect(self._update_selected_area)
         # update config
-        self._communication_channels.config_signal.connect(self._update_config)
+        self._communication_channels.config_signal.connect(self._update_config_options)
         
     def _select_source_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -124,6 +134,10 @@ class CommonOptionsFormWidget(QWidget):
             self._config.source = None
             self._source_filename_txt.setText('')
             self._communication_channels.clear_video_signal.emit()
+
+    def _update_acq_time(self, acq_time):
+        self._config.set_acq_time_from_str(acq_time)
+        self._acq_time_txt.setText(acq_time)
 
     def _select_results_dir(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog | QFileDialog.ShowDirsOnly)
@@ -183,10 +197,12 @@ class CommonOptionsFormWidget(QWidget):
             self._communication_channels.monitored_area_options_signal.emit(MonitoredAreaOptions())
 
     @pyqtSlot(ConfigOptions)
-    def _update_config(self, new_config):
+    def _update_config_options(self, new_config):
         self._config = new_config
         # update the video source
         self._update_source_filename(self._config.source)
+        # update acquisition time
+        self._update_acq_time(self._config.get_acq_time_as_str())
         # update the results folder
         self._update_results_dir(self._config.data_folder)
         # update the size
@@ -405,6 +421,126 @@ class MonitoredAreaFormWidget(QWidget):
         self._update_roi_filter(self._monitored_area.get_rois_filter_as_str())
 
 
+class TrackerWidget(QWidget):
+
+    def __init__(self, parent, communication_channels, config):
+        super(TrackerWidget, self).__init__(parent)
+        self._communication_channels = communication_channels
+        self._config = config
+        self._start_frame = -1
+        self._end_frame = -1
+        self._init_ui()
+        self._init_event_handlers()
+
+    def _init_ui(self):
+        group_layout = QGridLayout()
+
+        current_layout_row = 0
+
+        reg_ex = QRegExp('[0-9]*')
+        frame_val_validator = QRegExpValidator(reg_ex)
+
+        start_frame_widget = QWidget()
+        start_frame_layout = QVBoxLayout(start_frame_widget)
+        start_frame_lbl = QLabel('Start frame')
+        self._start_frame_txt = QLineEdit()
+        self._start_frame_txt.setValidator(frame_val_validator)
+        start_frame_layout.addWidget(start_frame_lbl)
+        start_frame_layout.addWidget(self._start_frame_txt)
+
+        end_frame_widget = QWidget()
+        end_frame_layout = QVBoxLayout(end_frame_widget)
+        end_frame_lbl = QLabel('Start frame')
+        self._end_frame_txt = QLineEdit()
+        self._end_frame_txt.setValidator(frame_val_validator)
+        end_frame_layout.addWidget(end_frame_lbl)
+        end_frame_layout.addWidget(self._end_frame_txt)
+
+        group_layout.addWidget(start_frame_widget, current_layout_row, 0)
+        group_layout.addWidget(end_frame_widget, current_layout_row, 1)
+        current_layout_row += 1
+
+        self._start_btn = QPushButton('Start')
+        self._cancel_btn = QPushButton('Cancel')
+
+        group_layout.addWidget(self._start_btn, current_layout_row, 0)
+        group_layout.addWidget(self._cancel_btn, current_layout_row, 1)
+        current_layout_row += 1
+
+        # set the layout
+        groupBox = QGroupBox()
+        groupBox.setLayout(group_layout)
+        layout = QVBoxLayout()
+        layout.addWidget(groupBox)
+        self.setLayout(layout)
+
+    def _init_event_handlers(self):
+        self._start_frame_txt.textChanged.connect(self._update_start_frame)
+        self._end_frame_txt.textChanged.connect(self._update_end_frame)
+        # update config
+        self._communication_channels.config_signal.connect(self._update_config_options)
+        self._start_btn.clicked.connect(self._start_tracker)
+        self._cancel_btn.clicked.connect(self._cancel_tracker)
+
+    def _update_start_frame(self, str_val):
+        if str_val:
+            self._start_frame = int(str_val)
+        else:
+            self._start_frame = -1
+
+    def _update_end_frame(self, str_val):
+        if str_val:
+            self._end_frame = int(str_val)
+        else:
+            self._end_frame = -1
+
+    @pyqtSlot(ConfigOptions)
+    def _update_config_options(self, new_config):
+        self._config = new_config
+        config_errors = self._config.validate()
+        if len(config_errors) == 0:
+            self.setDisabled(False)
+            self._start_btn.setDisabled(False)
+            self._cancel_btn.setDisabled(True)
+        else:
+            self.setDisabled(True)
+
+    def _start_tracker(self):
+        self._start_btn.setDisabled(True)
+        self._cancel_btn.setDisabled(False)
+        image_source = MovieFile(self._config.source,
+                                 start=self._start_frame,
+                                 end=self._end_frame,
+                                 resolution=self._config.image_size)
+
+        def create_monitored_area(configured_area_index, configured_area):
+            ma = MonitoredArea(track_type=configured_area.track_type,
+                          sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
+                          aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
+                          acq_time=self._config.acq_time)
+            ma.set_roi_filter(configured_area.tracked_rois_filter)
+            ma.load_rois(configured_area.maskfile)
+            ma.set_output(
+                os.path.join(self._config.data_folder, 'Monitor%02d.txt' % configured_area_index)
+            )
+            return ma
+
+        monitored_areas = [create_monitored_area(area_index, configured_area)
+                           for area_index, configured_area in enumerate(self._config.get_monitored_areas())
+                           if configured_area.track_flag]
+
+        process_image_frames(image_source, monitored_areas)
+
+        image_source.close()
+
+        self._start_btn.setDisabled(False)
+        self._cancel_btn.setDisabled(True)
+
+    def _cancel_tracker(self):
+        self._start_btn.setDisabled(False)
+        self._cancel_btn.setDisabled(True)
+
+
 class FormWidget(QWidget):
 
     def __init__(self, parent, communication_channels, config):
@@ -415,7 +551,10 @@ class FormWidget(QWidget):
         layout = QGridLayout()
         commonOptionsFormWidget = CommonOptionsFormWidget(self, communication_channels, config)
         monitoredAreaFormWidget = MonitoredAreaFormWidget(self, communication_channels)
+        trackerWidget = TrackerWidget(self, communication_channels, config)
         monitoredAreaFormWidget.setDisabled(True)
+        trackerWidget._update_config_options(config)
         layout.addWidget(commonOptionsFormWidget, 0, 0)
         layout.addWidget(monitoredAreaFormWidget, 1, 0)
+        layout.addWidget(trackerWidget, 2, 0)
         self.setLayout(layout)
