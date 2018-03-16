@@ -262,11 +262,13 @@ class MonitoredAreaFormWidget(QWidget):
         aggregation_interval_widget = QWidget()
         self._aggregation_interval_box = QSpinBox()
         self._aggregation_interval_box.setMinimum(1)
-        self._aggregation_interval_units = QComboBox()
-        self._aggregation_interval_units.addItems(['frames', 'seconds', 'minutes'])
+        self._aggregation_interval_units_choice = QComboBox()
+        self._aggregation_interval_units_choice.addItem('frames', 'frames')
+        self._aggregation_interval_units_choice.addItem('seconds', 'sec')
+        self._aggregation_interval_units_choice.addItem('minutes', 'min')
         aggregation_interval_layout = QHBoxLayout(aggregation_interval_widget)
         aggregation_interval_layout.addWidget(self._aggregation_interval_box, Qt.AlignLeft)
-        aggregation_interval_layout.addWidget(self._aggregation_interval_units, Qt.AlignLeft)
+        aggregation_interval_layout.addWidget(self._aggregation_interval_units_choice, Qt.AlignLeft)
         group_layout.addWidget(aggregation_interval_widget, current_layout_row, 0)
         current_layout_row += 1
 
@@ -294,6 +296,10 @@ class MonitoredAreaFormWidget(QWidget):
         self._track_check.stateChanged.connect(self._update_track_flag)
         # sleep deprivation checkbox
         self._sleep_deprivation_check.stateChanged.connect(self._update_sleep_deprivation_flag)
+        # aggregation interval
+        self._aggregation_interval_box.valueChanged.connect(self._update_aggregation_interval)
+        # aggregation interval units
+        self._aggregation_interval_units_choice.currentIndexChanged.connect(self._update_aggregation_interval_units)
         communication_channels.selected_area_signal.connect(self._update_selected_area)
         communication_channels.monitored_area_signal.connect(self._update_ui)
 
@@ -331,6 +337,31 @@ class MonitoredAreaFormWidget(QWidget):
         self._sleep_deprivation_check.setCheckState(val)
         self._monitored_area.sleep_deprived_flag = True if val == Qt.Checked else False
 
+    def _update_aggregation_interval(self, val):
+        self._monitored_area.aggregation_interval = val
+        self._aggregation_interval_box.setValue(val)
+
+    def _update_aggregation_interval_units(self, index, units=None):
+        if index == 0:
+            self._monitored_area.aggregation_interval_units = 'frames'
+        elif index == 1:
+            self._monitored_area.aggregation_interval_units = 'sec'
+        elif index == 2:
+            self._monitored_area.aggregation_interval_units = 'min'
+        elif units is None:
+            index = 0
+            self._monitored_area.aggregation_interval_units = 'frames'
+        elif units == 'sec':
+            index = 1
+            self._monitored_area.aggregation_interval_units = 'sec'
+        elif units == 'min':
+            index = 2
+            self._monitored_area.aggregation_interval_units = 'min'
+        else:
+            index = 0
+            self._monitored_area.aggregation_interval_units = 'frames'
+        self._aggregation_interval_units_choice.setCurrentIndex(index)
+
     @pyqtSlot(int)
     def _update_selected_area(self, area_index):
         if area_index < 0:
@@ -346,6 +377,8 @@ class MonitoredAreaFormWidget(QWidget):
         self._update_track_type(self._monitored_area.track_type)
         self._update_track_flag(Qt.Checked if self._monitored_area.track_flag else Qt.Unchecked)
         self._update_sleep_deprivation_flag(Qt.Checked if self._monitored_area.sleep_deprived_flag else Qt.Unchecked)
+        self._update_aggregation_interval(self._monitored_area.aggregation_interval)
+        self._update_aggregation_interval_units(-1, units=self._monitored_area.aggregation_interval_units)
 
 
 class FormWidget(QWidget):
