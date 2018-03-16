@@ -288,6 +288,8 @@ class MonitoredAreaFormWidget(QWidget):
     def _init_event_handlers(self, communication_channels):
         # source file name event handlers
         self._mask_filename_btn.clicked.connect(self._select_mask_file)
+        # track type
+        self._track_type_choice.currentIndexChanged.connect(self._update_track_type)
         # track checkbox
         self._track_check.stateChanged.connect(self._update_track_flag)
         # sleep deprivation checkbox
@@ -312,9 +314,18 @@ class MonitoredAreaFormWidget(QWidget):
             self._monitored_area.maskfile = None
             self._mask_filename_txt.setText('')
 
+    def _update_track_type(self, index):
+        self._monitored_area.track_type = index
+        self._track_type_choice.setCurrentIndex(index)
+
     def _update_track_flag(self, val):
         self._track_check.setCheckState(val)
-        self._monitored_area.track_flag = True if val == Qt.Checked else False
+        if val == Qt.Checked:
+            self._monitored_area.track_flag = True
+            self._track_type_choice.setDisabled(False)
+        else:
+            self._monitored_area.track_flag = False
+            self._track_type_choice.setDisabled(True)
 
     def _update_sleep_deprivation_flag(self, val):
         self._sleep_deprivation_check.setCheckState(val)
@@ -332,6 +343,7 @@ class MonitoredAreaFormWidget(QWidget):
         self._monitored_area = ma
         # update mask filename control
         self._update_mask_filename(self._monitored_area.maskfile)
+        self._update_track_type(self._monitored_area.track_type)
         self._update_track_flag(Qt.Checked if self._monitored_area.track_flag else Qt.Unchecked)
         self._update_sleep_deprivation_flag(Qt.Checked if self._monitored_area.sleep_deprived_flag else Qt.Unchecked)
 
