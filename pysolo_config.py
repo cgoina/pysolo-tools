@@ -13,6 +13,30 @@ class ConfigOptions:
         self.monitored_areas_count = 0
         self._monitored_areas = []
 
+    def get_image_width(self):
+        if self.image_size is None:
+            return 0
+        else:
+            return self.image_size[0]
+
+    def set_image_width(self, w):
+        if self.image_size is None:
+            self.image_size = (w, 0)
+        else:
+            self.image_size = (w, self.image_size[1])
+
+    def get_image_height(self):
+        if self.image_size is None:
+            return 0
+        else:
+            return self.image_size[1]
+
+    def set_image_height(self, h):
+        if self.image_size is None:
+            self.image_size = (0, h)
+        else:
+            self.image_size = (self.image_size[0], h)
+
     def add_monitored_area(self, monitored_area):
         if monitored_area is not None:
             self._monitored_areas.append(monitored_area)
@@ -40,6 +64,14 @@ class ConfigOptions:
 
     def validate(self):
         errors = []
+        if not self.source:
+            errors.append('Video source file is not defined')
+        if not self.image_size:
+            errors.append('Image size has not been set')
+        if self.get_image_width() == 0:
+            errors.append('Image width cannot be 0')
+        if self.get_image_height() == 0:
+            errors.append('Image height cannot be 0')
         if self.monitored_areas_count == 0:
             errors.append('Number of monitored areas must be greater than 0')
         elif len(self._monitored_areas) < self.monitored_areas_count:
@@ -48,7 +80,8 @@ class ConfigOptions:
         def monitored_area_validation(monitored_area, monitored_area_index):
             return ['Region %d: %s' % (monitored_area_index, err) for err in monitored_area.validate()]
 
-        return errors + list(chain.from_iterable([monitored_area_validation(a, ai) for ai, a in enumerate(self.get_monitored_areas())]))
+        return errors + list(chain.from_iterable([monitored_area_validation(a, ai)
+                                                  for ai, a in enumerate(self.get_monitored_areas())]))
 
     def _asdict(self):
         config_sections = [

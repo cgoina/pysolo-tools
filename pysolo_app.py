@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
 
 from pysolo_config import load_config, ConfigOptions, save_config, MonitoredAreaOptions
 from pysolo_form_widget import FormWidget
+from pysolo_image_widget import ImageWidget
 from pysolo_mask_widget import CreateMaskDlgWidget
 from pysolo_video import MovieFile
 
@@ -29,45 +30,45 @@ class PySoloMainAppWindow(QMainWindow):
         self.setWindowTitle('Fly Tracker')
 
     def _init_menus(self):
-        mainMenu = self.menuBar()
-        fileMenu = mainMenu.addMenu('File')
+        main_menu = self.menuBar()
+        file_menu = main_menu.addMenu('File')
 
-        loadConfigAct = QAction('&Open', self)
-        loadConfigAct.triggered.connect(self._open_config)
+        load_config_act = QAction('&Open', self)
+        load_config_act.triggered.connect(self._open_config)
 
-        saveConfigAct = QAction('&Save', self)
-        saveConfigAct.triggered.connect(self._save_current_config)
+        save_config_act = QAction('&Save', self)
+        save_config_act.triggered.connect(self._save_current_config)
 
-        saveConfigAsAct = QAction('Save &As', self)
-        saveConfigAsAct.triggered.connect(self._save_config)
+        save_config_as_act = QAction('Save &As', self)
+        save_config_as_act.triggered.connect(self._save_config)
 
-        clearConfigAct = QAction('&Clear config', self)
-        clearConfigAct.triggered.connect(self._clear_config)
+        clear_config_act = QAction('&Clear config', self)
+        clear_config_act.triggered.connect(self._clear_config)
 
-        newMaskAct = QAction('New &mask', self)
-        newMaskAct.triggered.connect(self._open_new_mask_dlg)
+        new_mask_act = QAction('New &mask', self)
+        new_mask_act.triggered.connect(self._open_new_mask_dlg)
 
-        exitAct = QAction('E&xit', self)
-        exitAct.setShortcut('Ctrl+Q')
-        exitAct.triggered.connect(self.close)
+        exit_act = QAction('E&xit', self)
+        exit_act.setShortcut('Ctrl+Q')
+        exit_act.triggered.connect(self.close)
 
-        fileMenu.addAction(loadConfigAct)
-        fileMenu.addAction(saveConfigAct)
-        fileMenu.addAction(saveConfigAsAct)
-        fileMenu.addSeparator()
-        fileMenu.addAction(clearConfigAct)
-        fileMenu.addSeparator()
-        fileMenu.addAction(newMaskAct)
-        fileMenu.addAction(exitAct)
+        file_menu.addAction(load_config_act)
+        file_menu.addAction(save_config_act)
+        file_menu.addAction(save_config_as_act)
+        file_menu.addSeparator()
+        file_menu.addAction(clear_config_act)
+        file_menu.addSeparator()
+        file_menu.addAction(new_mask_act)
+        file_menu.addAction(exit_act)
 
     def _init_widgets(self):
-        self._monitor_widget = MonitorWidget(self, self._communication_channels)
-        self._form_widget = FormWidget(self, self._communication_channels, self._config)
-        mainWidget = QWidget()
-        layout = QHBoxLayout(mainWidget)
-        layout.addWidget(self._monitor_widget)
-        layout.addWidget(self._form_widget)
-        self.setCentralWidget(mainWidget)
+        image_widget = ImageWidget(self, self._communication_channels)
+        form_widget = FormWidget(self, self._communication_channels, self._config)
+        main_widget = QWidget()
+        layout = QHBoxLayout(main_widget)
+        layout.addWidget(image_widget)
+        layout.addWidget(form_widget)
+        self.setCentralWidget(main_widget)
 
     def _open_new_mask_dlg(self):
         mask_editor = CreateMaskDlgWidget(self)
@@ -123,58 +124,18 @@ class PySoloMainAppWindow(QMainWindow):
 
     def _clear_config(self):
         self._config = ConfigOptions()
+        self._config_filename = None
         self._communication_channels.config_signal.emit(self._config)
         self._update_status()
 
 
 class WidgetCommunicationChannels(QObject):
     video_loaded_signal = pyqtSignal(MovieFile)
+    clear_video_signal = pyqtSignal()
     selected_area_signal = pyqtSignal(int)
     monitored_areas_count_signal = pyqtSignal(int)
     config_signal = pyqtSignal(ConfigOptions)
     monitored_area_signal = pyqtSignal(MonitoredAreaOptions)
-
-
-class MonitorWidget(QWidget):
-
-    def __init__(self, parent, communication_channels, image_width=640, image_height=480):
-        super(MonitorWidget, self).__init__(parent)
-        self._image_width = image_width
-        self._image_height = image_height
-        self._ratio = image_width / image_height
-        self._image = QImage()
-        self._init_ui()
-        communication_channels.video_loaded_signal.connect(self.set_movie)
-
-    def _init_ui(self):
-        self.video_frame = QLabel()
-        layout = QVBoxLayout()
-        self.video_frame.setMinimumHeight(self._image_height)
-        self.video_frame.setMinimumWidth(self._image_width)
-        layout.addWidget(self.video_frame)
-        layout.setGeometry(QRect(0, 0, self._image_width, self._image_height))
-        self.setLayout(layout)
-
-    @pyqtSlot(MovieFile)
-    def set_movie(self, movie_file):
-        self._movie_file = movie_file
-        _, _, image = self._movie_file.get_image()
-        self.update_image(image)
-
-    def update_image(self, image):
-        color_swapped_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        scalef = self._image_height / image.shape[1]
-        image_ratio = image.shape[0] / image.shape[1]
-        color_swapped_image = cv2.resize(color_swapped_image,
-                                         (int(color_swapped_image.shape[0] * scalef * self._ratio),
-                                          int(color_swapped_image.shape[1] * scalef * self._ratio / image_ratio)),
-                                         interpolation=cv2.INTER_AREA)
-        self._image = QImage(color_swapped_image,
-                             color_swapped_image.shape[0],
-                             color_swapped_image.shape[1],
-                             QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(self._image)
-        self.video_frame.setPixmap(pixmap)
 
 
 def main():
