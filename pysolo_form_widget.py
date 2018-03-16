@@ -197,9 +197,8 @@ class CommonOptionsFormWidget(QWidget):
 
 class MonitoredAreaFormWidget(QWidget):
 
-    def __init__(self, parent, communication_channels, config):
+    def __init__(self, parent, communication_channels):
         super(MonitoredAreaFormWidget, self).__init__(parent)
-        self._config = config
         self._monitored_area = MonitoredAreaOptions()
         self._init_ui()
         self._init_event_handlers(communication_channels)
@@ -260,7 +259,7 @@ class MonitoredAreaFormWidget(QWidget):
         current_layout_row += 1
         aggregation_interval_widget = QWidget()
         self._aggregation_interval_box = QSpinBox()
-        self._aggregation_interval_box.setMinimum(1)
+        self._aggregation_interval_box.setRange(1, 10000000)
         self._aggregation_interval_units_choice = QComboBox()
         self._aggregation_interval_units_choice.addItem('frames', 'frames')
         self._aggregation_interval_units_choice.addItem('seconds', 'sec')
@@ -303,8 +302,6 @@ class MonitoredAreaFormWidget(QWidget):
         self._roi_filter_txt.textChanged.connect(self._update_roi_filter)
         # selected area
         communication_channels.selected_area_signal.connect(self._update_selected_area)
-        # update config
-        communication_channels.config_signal.connect(self._update_monitored_area_config)
         # update monitored area
         communication_channels.monitored_area_signal.connect(self._update_monitored_area)
 
@@ -381,10 +378,6 @@ class MonitoredAreaFormWidget(QWidget):
         else:
             self.setDisabled(False)
 
-    @pyqtSlot(ConfigOptions)
-    def _update_monitored_area_config(self, new_config):
-        self._config = new_config
-
     @pyqtSlot(MonitoredAreaOptions)
     def _update_monitored_area(self, ma):
         self._monitored_area = ma
@@ -407,7 +400,7 @@ class FormWidget(QWidget):
     def _init_ui(self, communication_channels, config):
         layout = QGridLayout()
         commonOptionsFormWidget = CommonOptionsFormWidget(self, communication_channels, config)
-        monitoredAreaFormWidget = MonitoredAreaFormWidget(self, communication_channels, config)
+        monitoredAreaFormWidget = MonitoredAreaFormWidget(self, communication_channels)
         monitoredAreaFormWidget.setDisabled(True)
         layout.addWidget(commonOptionsFormWidget, 0, 0)
         layout.addWidget(monitoredAreaFormWidget, 1, 0)

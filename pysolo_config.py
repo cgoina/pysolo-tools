@@ -105,7 +105,7 @@ class MonitoredAreaOptions:
 
     def __init__(self):
         self.maskfile = None
-        self.track_flag = False
+        self.track_flag = True
         self.track_type = 0
         self.sleep_deprived_flag = False
         self.tracked_rois_filter = None
