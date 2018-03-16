@@ -77,6 +77,6 @@ class ImageWidget(QWidget):
         roi_image = np.zeros(self._image_frame.shape, np.uint8)
         for roi in monitored_area_rois.ROIS:
             roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._movie_file.get_scale()))
-            cv2.polylines(roi_image, [roi_array], isClosed=True, color=[255, 255, 255])
+            cv2.polylines(roi_image, [roi_array], isClosed=True, color=[0, 255, 255])
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels(overlay)
