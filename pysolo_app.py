@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+import logging.config
 import sys
+from argparse import ArgumentParser
 
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtCore import pyqtSignal, QObject, Qt, QRect
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
-                             QFileDialog, QAction, QMessageBox)
+                             QFileDialog, QAction, QMessageBox, QScrollArea, QVBoxLayout)
 
 from pysolo_config import load_config, ConfigOptions, save_config, MonitoredAreaOptions
 from pysolo_form_widget import FormWidget
@@ -63,6 +65,8 @@ class PySoloMainAppWindow(QMainWindow):
         image_widget = ImageWidget(self, self._communication_channels)
         form_widget = FormWidget(self, self._communication_channels, self._config)
         main_widget = QWidget()
+        main_widget.setMinimumWidth(1200)
+        main_widget.setMinimumHeight(800)
         layout = QHBoxLayout(main_widget)
         layout.addWidget(image_widget)
         layout.addWidget(form_widget)
@@ -134,8 +138,19 @@ class WidgetCommunicationChannels(QObject):
     monitored_area_options_signal = pyqtSignal(MonitoredAreaOptions)
     maskfile_signal = pyqtSignal(str)
     monitored_area_rois_signal = pyqtSignal(MonitoredArea)
+    tracker_running_signal = pyqtSignal(bool)
 
 def main():
+    parser = ArgumentParser(usage='prog [options]')
+    parser.add_argument('-l', '--log-config',
+                        default='logger.conf', dest='log_config_file',
+                        metavar='LOG_CONFIG_FILE', help='The full path to the log config file to open')
+
+    args = parser.parse_args()
+
+    # setup logger
+    logging.config.fileConfig(args.log_config_file)
+
     app = QApplication(sys.argv)
     config_app = PySoloMainAppWindow()
     config_app.show()

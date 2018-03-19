@@ -7,6 +7,7 @@ from os.path import dirname, exists
 import cv2
 import numpy as np
 
+
 _logger = logging.getLogger('tracker')
 
 
@@ -22,33 +23,43 @@ class MonitoredArea():
     def __init__(self,
                  track_type=1,
                  sleep_deprivation_flag=0,
-                 aggregated_frames=1,
-                 datawindow_size=10,
                  fps=1,
+                 aggregated_frames=1,
+                 aggregated_frames_size=19,
+                 tracking_data_buffer_size=9,
                  acq_time=None):
         """
-        :param track_type: track type
-        :param sleep_deprivation_flag: sleep deprivation flag
-        :param datawindow_size: data window size
+        :param track_type: 
+        :param sleep_deprivation_flag:
+        :param fps: this values is the video acquisition rate and typically comes from the image source
+        :param aggregated_frames: 
+        :param tracking_data_buffer_size:
+        :param acq_time: 
         """
         self._track_type = track_type
         self._sleep_deprivation_flag = sleep_deprivation_flag
         self.ROIS = [] # regions of interest
         self._beams = [] # beams: absolute coordinates
         self._points_to_track = []
-        self._datawindow_size = datawindow_size
-        self._aggregated_frames = aggregated_frames
+        self._tracking_data_buffer_size = tracking_data_buffer_size if tracking_data_buffer_size > 0 else 1
+        self._tracking_data_buffer = []
+        self._tracking_data_buffer_index = 0
         self._fps = fps
+        self._aggregated_frames = aggregated_frames if aggregated_frames > 0 else 1
         self._acq_time = datetime.now() if acq_time is None else acq_time
         self._roi_filter = None
 
-        # shape ( rois, (time, x, y) ) Contains the coordinates of the current frame per ROI
-        self._fly_coord_by_roi = np.zeros((1, 2), dtype=np.int)
-        # shape ( flies, self._frames_per_dataspan, (time, x, y) )
-        # Contains the frame time and the coordinates from all frames from the current period
-        self._datawindow_fly_coord_by_roi = np.zeros((1, self._datawindow_size, 2), dtype=np.int)
-        self._datawindow_frame_time_pos = np.zeros(self._datawindow_size, dtype=np.int)
-        self._datawindow_current_index = 0
+        # shape ( rois, (x, y) ) - contains the coordinates of the current frame per ROI
+        self._current_frame_fly_coord = np.zeros((1, 2), dtype=np.int)
+        # shape ( rois, self._aggregated_frames+1, (x, y) ) - contains the coordinates of the frames that
+        # need to be aggregated.
+        self._aggregated_frames_size = aggregated_frames_size + 1 if aggregated_frames_size > 0 else 2
+        self._aggregated_frames_fly_coord = np.zeros((1, self._aggregated_frames_size, 2), dtype=np.int)
+        # the relative frame index from the last aggregation
+        self._aggregated_frame_index = 0
+        # index to the aggregated frames buffer - the reason for this is that if the number of aggregated frames is
+        # too large these will drift apart
+        self._aggregated_frames_buffer_index = 0
         self._first_position = (0, 0)
 
     def set_roi_filter(self, trackable_rois):
@@ -81,7 +92,7 @@ class MonitoredArea():
         max_movement = fly_size * 100
         min_movement = fly_size / 3
 
-        previous_position = tuple(self._fly_coord_by_roi[roi_index])
+        previous_position = tuple(self._current_frame_fly_coord[roi_index])
         is_first_movement = (previous_position == self._first_position)
         # coords is None if no blob was detected
         fly_coords = previous_position if coords is None else coords
@@ -94,7 +105,7 @@ class MonitoredArea():
         # Does a running average for the coordinates of the fly at each frame to _fly_coord_buffer
         # This way the shape of _fly_coord_buffer is always (n, (x,y)) and once a second we just have to add the (x,y)
         # values to _fly_period_end_coords, whose shape is (n, 60, (x,y))
-        self._fly_coord_by_roi[roi_index] = fly_coords
+        self._current_frame_fly_coord[roi_index] = fly_coords
         return fly_coords, distance
 
     def _distance(self, p1, p2):
@@ -178,32 +189,63 @@ class MonitoredArea():
             self._beams.append(self._get_midline(roi))
 
     def _reset_data_buffers(self):
-        self._reset_fly_coord_buffer()
-        self._reset_datawindow_buffers()
+        self._reset_current_frame_buffer()
+        self._reset_aggregated_frames_buffers()
 
-    def _reset_datawindow_buffers(self):
-        self._datawindow_fly_coord_by_roi = np.zeros((len(self.ROIS), self._datawindow_size, 2), dtype=np.int)
+    def _reset_aggregated_frames_buffers(self):
+        self._aggregated_frames_fly_coord = np.zeros((len(self.ROIS), self._aggregated_frames_size, 2), dtype=np.int)
 
-    def _reset_fly_coord_buffer(self):
-        self._fly_coord_by_roi = np.zeros((len(self.ROIS), 2), dtype=np.int)
+    def _reset_current_frame_buffer(self):
+        self._current_frame_fly_coord = np.zeros((len(self.ROIS), 2), dtype=np.int)
+
+    def _reset_tracking_data_buffer(self):
+        self._tracking_data_buffer = []
+        self._tracking_data_buffer_index = 0
+        self._aggregated_frame_index = 0
 
     def _shift_data_window(self, nframes):
-        self._datawindow_fly_coord_by_roi = np.roll(self._datawindow_fly_coord_by_roi, (-nframes, 0), axis=(1, 0))
-        self._datawindow_frame_time_pos = np.roll(self._datawindow_frame_time_pos, -nframes)
-        self._datawindow_current_index -= nframes
+        self._aggregated_frames_fly_coord = np.roll(self._aggregated_frames_fly_coord, (-nframes, 0), axis=(1, 0))
+        self._aggregated_frames_buffer_index -= nframes
 
-    def update_frame_activity(self, frame_time):
-        self._datawindow_fly_coord_by_roi[:, self._datawindow_current_index] = self._fly_coord_by_roi
-        self._datawindow_frame_time_pos[self._datawindow_current_index] = frame_time
+    def update_frame_activity(self, frame_time, scalef=None):
+        self._aggregated_frames_fly_coord[:, self._aggregated_frames_buffer_index] = self._current_frame_fly_coord
+        self._aggregated_frames_buffer_index += 1
+        self._aggregated_frame_index += 1
+        if self._aggregated_frame_index >= self._aggregated_frames:
+            # aggregate the current buffers
+            self.aggregate_activity(frame_time, scalef=scalef)
+            # then
+            if len(self._tracking_data_buffer) < self._tracking_data_buffer_size:
+                # buffer the aggregated activity if there's room in the buffers
+                self._tracking_data_buffer_index += 1
+            else:
+                # or dump the current data buffers to disk
+                self.write_activity(frame_time, extend=self._extend)
+            self._aggregated_frame_index = 0
+        elif self._aggregated_frames_buffer_index >= self._aggregated_frames_size:
+            # the data buffers reached the limit so aggregate the current buffers
+            self.aggregate_activity(frame_time, scalef=scalef)
+
         # # prepare the frame coordinate buffer for the next frame
-        self._reset_fly_coord_buffer()
-        self._datawindow_current_index += 1
-        if self._datawindow_current_index >= self._datawindow_size:
-            return True
-        else:
-            return False
+        self._reset_current_frame_buffer()
 
-    def write_activity(self, frame_time, extend=True, scale=None):
+    def aggregate_activity(self, frame_time, scalef=None):
+        if self._track_type == 0:
+            activity = self._calculate_distances()
+        elif self._track_type == 1:
+            activity = VirtualBeamCrossings(frame_time, self._calculate_vbm(scale=scalef))
+        elif self._track_type == 2:
+            activity, aggregation_op = self._calculate_position()
+        else:
+            raise ValueError('Invalid track type option: %d' % self._track_type)
+        if len(self._tracking_data_buffer) <= self._tracking_data_buffer_index:
+            self._tracking_data_buffer.append(activity)
+        else:
+            previous_activity = self._tracking_data_buffer[self._tracking_data_buffer_index]
+            # combine previous activity with the current activity
+            previous_activity.aggregate_with(activity)
+
+    def write_activity(self, frame_time, extend=True):
         if self.output_filename:
             # monitor is active
             active = '1'
@@ -217,15 +259,6 @@ class MonitoredArea():
             unused = 0
             # is light on or off?
             light = '0'  # changed to 0 from ? for compatability with SCAMP
-            # get fly activity
-            activity = []
-            if self._track_type == 0:
-                activity = self._calculate_distances()
-            elif self._track_type == 1:
-                activity = self._calculate_vbm(scale=scale)
-            elif self._track_type == 2:
-                activity = self._calculate_position()
-
             # Expand the readings to 32 flies for compatibility reasons with trikinetics  - in our case 32 ROIs
             # since there's one fly / ROI
             n_rois = len(self.ROIS)
@@ -235,10 +268,10 @@ class MonitoredArea():
                 extension = ''
 
             with open(self.output_filename, 'a') as ofh:
-                for a in activity:
+                for a in self._tracking_data_buffer:
                     self._lineno += 1
                     # frame timestamp
-                    frame_dt = self._acq_time + timedelta(seconds=int(a[0]))
+                    frame_dt = self._acq_time + timedelta(seconds=int(a.frame_time))
                     frame_dt_str = frame_dt.strftime('%d %b %y\t%H:%M:%S')
 
                     row_prefix = '%s\t' * 9 % (self._lineno, frame_dt_str,
@@ -246,28 +279,28 @@ class MonitoredArea():
                                                sleep_deprivation,
                                                monitor, unused, light)
                     ofh.write(row_prefix)
-                    ofh.write('\t'.join([str(v) for v in a[1:]]))
+                    ofh.write(a.format_values())
                     ofh.write(extension)
                     ofh.write('\n')
+        self._reset_tracking_data_buffer()
 
     def _calculate_distances(self):
         """
         Motion is calculated as distance in px per minutes
         """
         # shift by one second left flies, seconds, (x,y)
-        fs = np.roll(self._datawindow_fly_coord_by_roi, -1, axis=1)
+        fs = np.roll(self._aggregated_frames_fly_coord, -1, axis=1)
 
-        x = self._datawindow_fly_coord_by_roi[:, :self._datawindow_current_index, 0]
-        y = self._datawindow_fly_coord_by_roi[:, :self._datawindow_current_index, 1]
+        x = self._aggregated_frames_fly_coord[:, :self._aggregated_frames_buffer_index, 0]
+        y = self._aggregated_frames_fly_coord[:, :self._aggregated_frames_buffer_index, 1]
 
-        x1 = fs[:, :self._datawindow_current_index, 0]
-        y1 = fs[:, :self._datawindow_current_index, 1]
+        x1 = fs[:, :self._aggregated_frames_buffer_index, 0]
+        y1 = fs[:, :self._aggregated_frames_buffer_index, 1]
 
         d = self._distance((x, y), (x1, y1))
 
-        nframes = self._datawindow_current_index - 1
-        values = np.zeros((nframes, 1 + len(self.ROIS)), dtype=np.int)
-        values[:, 0] = self._datawindow_frame_time_pos[1:self._datawindow_current_index]
+        nframes = self._aggregated_frames_buffer_index - 1
+        values = np.zeros((nframes, len(self.ROIS)), dtype=np.int)
 
         # we sum everything BUT the last bit of information otherwise we have data duplication
         values[:,1:] = d.transpose()[:nframes,:]
@@ -281,32 +314,31 @@ class MonitoredArea():
         Motion is calculated as virtual beam crossing
         Detects automatically beam orientation (vertical vs horizontal)
         """
-        nframes = self._datawindow_current_index - 1
-        # the values.shape is (nframes, nrois + 1)),
+        nframes = self._aggregated_frames_buffer_index - 1
+        # the values.shape is (nframes, nrois)),
         #  where the value[:, 0] is the frame time position
-        values = np.zeros((nframes, 1 + len(self.ROIS)), dtype=np.int)
-        values[:, 0] = self._datawindow_frame_time_pos[1:self._datawindow_current_index]
+        values = np.zeros((len(self.ROIS)), dtype=np.int)
         roi_index = 0
-        for fd, md in zip(self._datawindow_fly_coord_by_roi, self._relative_beams(scale=scale)):
+        for fd, md in zip(self._aggregated_frames_fly_coord, self._relative_beams(scale=scale)):
             if self.is_roi_trackable(roi_index):
                 (mx1, my1), (mx2, my2) = md
                 horizontal = (mx1 == mx2)
 
                 fs = np.roll(fd, -1, 0) # coordinates shifted to the following frame
 
-                x = fd[:self._datawindow_current_index, 0]
-                y = fd[:self._datawindow_current_index, 1]
-                x1 = fs[:self._datawindow_current_index, 0]
-                y1 = fs[:self._datawindow_current_index, 1]
+                x = fd[:self._aggregated_frames_buffer_index, 0]
+                y = fd[:self._aggregated_frames_buffer_index, 1]
+                x1 = fs[:self._aggregated_frames_buffer_index, 0]
+                y1 = fs[:self._aggregated_frames_buffer_index, 1]
 
                 if horizontal:
                     crosses = (x < mx1) * (x1 > mx1) + (x > mx1) * (x1 < mx1)
                 else:
                     crosses = (y < my1) * (y1 > my1) + (y > my1) * (y1 < my1)
-                values[:, roi_index + 1] = crosses[:nframes]
+                values[roi_index] = crosses[:nframes].sum()
             else:
                 # the region is not tracked
-                values[:, roi_index + 1] = 0
+                values[roi_index] = 0
 
             roi_index += 1
 
@@ -332,15 +364,18 @@ class MonitoredArea():
             )
         return beams
 
+    def _sum_values(self, x, y):
+        return x + y
+
     def _calculate_position(self, resolution=1):
         """
         Simply write out position of the fly at every time interval, as
         decided by "resolution" (seconds)
         """
-        nframes = self._datawindow_current_index - 1
-        fs = np.roll(self._datawindow_fly_coord_by_roi, -1, axis=1)
-        x = fs[:, :self._datawindow_current_index, 0]
-        y = fs[:, :self._datawindow_current_index, 1]
+        nframes = self._aggregated_frames_buffer_index - 1
+        fs = np.roll(self._aggregated_frames_fly_coord, -1, axis=1)
+        x = fs[:, :self._aggregated_frames_buffer_index, 0]
+        y = fs[:, :self._aggregated_frames_buffer_index, 1]
 
         values = []
         for frame in range(0, nframes):
@@ -349,6 +384,32 @@ class MonitoredArea():
         self._shift_data_window(nframes)
 
         return values
+
+
+class TrackingData():
+
+    def __init__(self, frame_time, values):
+        self.frame_time = frame_time
+        self.values = values
+
+    def aggregate_with(self, tracking_data):
+        self.frame_time = tracking_data.frame_time
+        self.values = self.combine_values(self.values, tracking_data.values)
+
+    def combine_values(self, v1, v2):
+        pass
+
+    def format_values(self):
+        return '\t'.join([str(v) for v in self.values])
+
+
+class VirtualBeamCrossings(TrackingData):
+
+    def __init__(self, frame_time, values):
+        super(VirtualBeamCrossings, self).__init__(frame_time, values)
+
+    def combine_values(self, v1, v2):
+        return v1 + v2
 
 
 class ImageSource():
@@ -417,11 +478,11 @@ class MovieFile(ImageSource):
         else:
             current_frame = self._current_frame
             res = self._capture.read()
-            if self.inc_current_frame() and self._step != 1:
+            if self._inc_current_frame() and self._step != 1:
                 self._capture.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
             return res[0], current_frame, res[1]
 
-    def inc_current_frame(self):
+    def _inc_current_frame(self):
         self._current_frame += self._step
         if self._current_frame < self._end:
             return True
@@ -466,13 +527,14 @@ class MovieFile(ImageSource):
 
 def prepare_monitored_areas(config, start_frame=None, end_frame=None):
     image_source = MovieFile(config.source,
-                     start=start_frame,
-                     end=end_frame,
-                     resolution=config.image_size)
+                             start=start_frame,
+                             end=end_frame,
+                             resolution=config.image_size)
 
     def create_monitored_area(configured_area_index, configured_area):
         ma = MonitoredArea(track_type=configured_area.track_type,
                            sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
+                           fps=image_source.get_fps(),
                            aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
                            acq_time=config.acq_time)
         ma.set_roi_filter(configured_area.tracked_rois_filter)
@@ -488,7 +550,6 @@ def prepare_monitored_areas(config, start_frame=None, end_frame=None):
 
 
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21), gaussian_sigma=1):
-    previous_frame = None
     moving_average = None
 
     while True:
@@ -501,7 +562,6 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
 
         # smooth the image to get rid of false positives
         frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
-        cv2.imwrite('frame-%d.jpg' % next_frame_res[1], frame_image)
 
         if moving_average is None:
             moving_average = np.float32(frame_image)
@@ -510,34 +570,27 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
 
         temp_frame = cv2.convertScaleAbs(moving_average)
 
-        cv2.imwrite('moving-%d.jpg' % next_frame_res[1], temp_frame)
-
         background_diff = cv2.subtract(temp_frame, frame_image) # subtract the background
         grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
-
-        cv2.imwrite('foreground-%d.jpg' % next_frame_res[1], grey_image)
 
         binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
         binary_image = cv2.dilate(binary_image, None, iterations=2)
         binary_image = cv2.erode(binary_image, None, iterations=2)
 
-        cv2.imwrite('flyblobs-%d.jpg' % next_frame_res[1], binary_image)
-
         for area_index, monitored_area in enumerate(monitored_areas):
             for roi_index, roi in enumerate(monitored_area.ROIS):
                 if monitored_area.is_roi_trackable(roi_index):
-                    process_roi(binary_image, next_frame_res[1], monitored_area, roi, area_index, roi_index, image_source.get_scale())
+                    process_roi(binary_image, monitored_area, roi, roi_index, image_source.get_scale())
 
             # prepare the frame coordinates buffer for the next frame
-            if monitored_area.update_frame_activity(frame_time_pos):
-                # filled the data buffers
-                monitored_area.write_activity(frame_time_pos, scale=image_source.get_scale())
+            monitored_area.update_frame_activity(frame_time_pos, scalef=image_source.get_scale())
 
-        previous_frame = grey_image
-
-    # write the remaining activity
+    # write the remaining activity that is only in memory
     for area_index, monitored_area in enumerate(monitored_areas):
-        monitored_area.write_activity(frame_time_pos, scale=image_source.get_scale())
+        # aggregate whatever is left in the buffers
+        monitored_area.aggregate_activity(frame_time_pos, scalef=image_source.get_scale())
+        # then write them out to disk
+        monitored_area.write_activity(frame_time_pos)
 
     return True
 
@@ -546,22 +599,23 @@ def draw_roi(roi_mask, roi):
     cv2.fillPoly(roi_mask, [roi], color=[255, 255, 255])
 
 
-def process_roi(image, image_index, monitored_area, roi, monitor_area_index, roi_index, scalef):
+def process_roi(image, monitored_area, roi, roi_index, scalef):
     roi_mask = np.zeros(image.shape, np.uint8)
     (offset_x, offset_y), _ = monitored_area.roi_to_rect(roi, scalef)
     draw_roi(roi_mask, np.array(monitored_area.roi_to_poly(roi, scalef)))
 
     image_roi = cv2.bitwise_and(image, image, mask=roi_mask)
-    cv2.imwrite('masked-%d-%d-%d.jpg' % (image_index, monitor_area_index, roi_index), image_roi)
     # get the contours relative to the upper left corner of the ROI
-    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE, offset=(-offset_x, -offset_y))
+    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE,
+                                offset=(-offset_x, -offset_y))
 
     fly_coords = None
     for fly_contour in fly_cnts[1]:
         fly_contour_moments = cv2.moments(fly_contour)
         area = fly_contour_moments['m00']
         if area > 0:
-            fly_coords = (fly_contour_moments['m10'] / fly_contour_moments['m00'], fly_contour_moments['m01'] / fly_contour_moments['m00'])
+            fly_coords = (fly_contour_moments['m10'] / fly_contour_moments['m00'],
+                          fly_contour_moments['m01'] / fly_contour_moments['m00'])
         else:
             bound_rect = cv2.boundingRect(fly_contour)
             pt1 = (bound_rect[0], bound_rect[1])
@@ -571,4 +625,5 @@ def process_roi(image, image_index, monitored_area, roi, monitor_area_index, roi
 
         if area > 400 * scalef[0] * scalef[1]:
             fly_coords = None
+
     return monitored_area.add_fly_coords(roi_index, fly_coords)

@@ -12,7 +12,7 @@ from pysolo_video import MovieFile, MonitoredArea
 
 class ImageWidget(QWidget):
 
-    def __init__(self, parent, communication_channels, image_width=640, image_height=480):
+    def __init__(self, parent, communication_channels, image_width=540, image_height=400):
         super(ImageWidget, self).__init__(parent)
         self._image_width = image_width
         self._image_height = image_height
@@ -29,7 +29,6 @@ class ImageWidget(QWidget):
         self._video_frame.setMinimumHeight(self._image_height)
         self._video_frame.setMinimumWidth(self._image_width)
         layout.addWidget(self._video_frame)
-        layout.setGeometry(QRect(0, 0, self._image_width, self._image_height))
         self.setLayout(layout)
 
     def _init_event_handlers(self, communication_channels):

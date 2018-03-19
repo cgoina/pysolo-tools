@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QRect
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
-                             QGroupBox, QCheckBox)
+                             QGroupBox, QCheckBox, QScrollArea)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
 from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas
@@ -263,8 +263,6 @@ class MonitoredAreaFormWidget(QWidget):
         track_flag_layout.addWidget(track_flag_lbl, Qt.AlignLeft)
         group_layout.addWidget(track_flag_widget, current_layout_row, 0)
 
-        current_layout_row += 1
-
         # sleep deprivation flag
         self._sleep_deprivation_check = QCheckBox()
         sleep_deprivation_lbl = QLabel('Sleep deprivation')
@@ -272,7 +270,7 @@ class MonitoredAreaFormWidget(QWidget):
         sleep_deprivation_layout = QHBoxLayout(sleep_deprivationwidget)
         sleep_deprivation_layout.addWidget(self._sleep_deprivation_check)
         sleep_deprivation_layout.addWidget(sleep_deprivation_lbl, Qt.AlignLeft)
-        group_layout.addWidget(sleep_deprivationwidget, current_layout_row, 0)
+        group_layout.addWidget(sleep_deprivationwidget, current_layout_row, 1)
         current_layout_row += 1
 
         # Aggregation interval
@@ -449,7 +447,7 @@ class TrackerWidget(QWidget):
 
         end_frame_widget = QWidget()
         end_frame_layout = QVBoxLayout(end_frame_widget)
-        end_frame_lbl = QLabel('Start frame')
+        end_frame_lbl = QLabel('End frame')
         self._end_frame_txt = QLineEdit()
         self._end_frame_txt.setValidator(frame_val_validator)
         end_frame_layout.addWidget(end_frame_lbl)
@@ -507,7 +505,8 @@ class TrackerWidget(QWidget):
     def _start_tracker(self):
         self._start_btn.setDisabled(True)
         self._cancel_btn.setDisabled(False)
-        image_source, monitored_areas = prepare_monitored_areas(self._config.source,
+        self._communication_channels.tracker_running_signal.emit(True)
+        image_source, monitored_areas = prepare_monitored_areas(self._config,
                                                                 start_frame=self._start_frame,
                                                                 end_frame=self._end_frame)
 
@@ -517,10 +516,12 @@ class TrackerWidget(QWidget):
 
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
+        self._communication_channels.tracker_running_signal.emit(False)
 
     def _cancel_tracker(self):
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
+        self._communication_channels.tracker_running_signal.emit(False)
 
 
 class FormWidget(QWidget):
@@ -530,13 +531,30 @@ class FormWidget(QWidget):
         self._init_ui(communication_channels, config)
 
     def _init_ui(self, communication_channels, config):
-        layout = QGridLayout()
+        grid_layout = QGridLayout()
         commonOptionsFormWidget = CommonOptionsFormWidget(self, communication_channels, config)
         monitoredAreaFormWidget = MonitoredAreaFormWidget(self, communication_channels)
         trackerWidget = TrackerWidget(self, communication_channels, config)
         monitoredAreaFormWidget.setDisabled(True)
         trackerWidget._update_config_options(config)
-        layout.addWidget(commonOptionsFormWidget, 0, 0)
-        layout.addWidget(monitoredAreaFormWidget, 1, 0)
-        layout.addWidget(trackerWidget, 2, 0)
-        self.setLayout(layout)
+        grid_layout.addWidget(commonOptionsFormWidget, 0, 0)
+        grid_layout.addWidget(monitoredAreaFormWidget, 1, 0)
+        grid_layout.addWidget(trackerWidget, 2, 0)
+
+        # setup the scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setEnabled(True)
+
+        scroll_area_widget = QWidget()
+        # scroll_area_widget.setGeometry(QRect(0, 0, 1112, 1400))
+        scroll_area_widget.setMinimumWidth(640)
+        scroll_area_widget.setLayout(grid_layout)
+        scroll_area.setWidget(scroll_area_widget)
+
+        form_layout = QVBoxLayout()
+        form_layout.addWidget(scroll_area)
+
+        self.setLayout(form_layout)
