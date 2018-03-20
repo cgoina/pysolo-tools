@@ -489,12 +489,11 @@ class TrackerWidget(QWidget):
 
     def _update_start_time_in_secs(self, str_val):
         if str_val:
-            start_time_secs = int(str_val)
-            self._start_frame_msecs = start_time_secs * 1000
-            self._communication_channels.video_start_pos_signal.emit(start_time_secs)
+            self._start_frame_msecs = int(str_val) * 1000
+            self._communication_channels.video_frame_pos_signal.emit(self._start_frame_msecs / 1000, 'seconds')
         else:
             self._start_frame_msecs = -1
-            self._communication_channels.video_start_pos_signal.emit(-1)
+            self._communication_channels.video_frame_pos_signal.emit(0, 'seconds')
 
     def _update_end_time_in_secs(self, str_val):
         if str_val:
@@ -518,6 +517,9 @@ class TrackerWidget(QWidget):
         self._cancel_btn.setDisabled(False)
         self._communication_channels.tracker_running_signal.emit(True)
 
+        def update_frame_image(frame):
+            self._communication_channels.video_frame_pos_signal.emit(frame, 'frames')
+
         def process_frames():
             image_source, monitored_areas = prepare_monitored_areas(self._config,
                                                                     start_frame_msecs=self._start_frame_msecs,
@@ -525,7 +527,9 @@ class TrackerWidget(QWidget):
 
             self._set_tracker_running()
 
-            process_image_frames(image_source, monitored_areas, cancel_callback=self._is_tracker_running)
+            process_image_frames(image_source, monitored_areas,
+                                 cancel_callback=self._is_tracker_running,
+                                 frame_pos_callback=update_frame_image)
 
             image_source.close()
 

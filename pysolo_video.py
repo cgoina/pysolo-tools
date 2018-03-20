@@ -649,7 +649,7 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
 
 
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
-                         gaussian_sigma=1, cancel_callback=None):
+                         gaussian_sigma=1, cancel_callback=None, frame_pos_callback=None):
     moving_average = None
 
     def forever():
@@ -663,6 +663,10 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         if not next_frame_res[0]:
             break
         _logger.info('Process frame %d(frame time: %rs)' % (next_frame_res[1], frame_time_pos))
+
+        if frame_pos_callback is not None:
+            frame_pos_callback(next_frame_res[1])
+
         frame_image = next_frame_res[2]
 
         # smooth the image to get rid of false positives

@@ -39,18 +39,25 @@ class ImageWidget(QWidget):
         self.setLayout(layout)
 
     def _init_event_handlers(self, communication_channels):
-        self._frame_sld.valueChanged[int].connect(self._update_frame)
-        communication_channels.video_start_pos_signal.connect(self._update_frame)
+        self._frame_sld.valueChanged[int].connect(partial(self._update_frame_pos_in_secs, unit='seconds'))
+        communication_channels.video_frame_pos_signal.connect(self._update_frame_pos_in_secs)
         communication_channels.video_loaded_signal.connect(self._set_movie)
         communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
         communication_channels.maskfile_signal.connect(self._load_and_display_rois)
         communication_channels.monitored_area_rois_signal.connect(self._display_rois)
         communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
 
-    @pyqtSlot(int)
-    def _update_frame(self, value):
+    @pyqtSlot(float, str)
+    def _update_frame_pos_in_secs(self, frame_pos, unit='seconds'):
         if self._movie_file is not None:
-            frame = value * self._movie_file.get_fps()
+            if unit == 'frames':
+                frame = frame_pos
+                sld_pos = int(frame_pos / self._movie_file.get_fps())
+            else:
+                # treat is seconds
+                frame = int(frame_pos * self._movie_file.get_fps())
+                sld_pos = frame_pos
+            self._frame_sld.setValue(sld_pos)
             image_exist, _, image = self._movie_file.update_frame_index(frame)
             if image_exist:
                 self._set_image(image)
