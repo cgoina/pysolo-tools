@@ -305,10 +305,12 @@ class MonitoredArea():
         d = self._distance((x, y), (x1, y1))
 
         nframes = self._aggregated_frames_buffer_index - 1
-        # we sum nframes only so that we don't have duplication
-        values = d[:, :nframes].sum(axis=1)
-
-        self._shift_data_window(nframes)
+        if nframes > 0:
+            # we sum nframes only so that we don't have duplication
+            values = d[:, :nframes].sum(axis=1)
+            self._shift_data_window(nframes)
+        else:
+            values = np.zeros((len(self.ROIS)), dtype=np.int)
 
         return values, nframes
 
@@ -319,34 +321,34 @@ class MonitoredArea():
         """
         nframes = self._aggregated_frames_buffer_index - 1
         # the values.shape is (nframes, nrois)),
-        #  where the value[:, 0] is the frame time position
         values = np.zeros((len(self.ROIS)), dtype=np.int)
-        roi_index = 0
-        for fd, md in zip(self._aggregated_frames_fly_coord, self._relative_beams(scale=scale)):
-            if self.is_roi_trackable(roi_index):
-                (mx1, my1), (mx2, my2) = md
-                horizontal = (mx1 == mx2)
+        if nframes > 0:
+            roi_index = 0
+            for fd, md in zip(self._aggregated_frames_fly_coord, self._relative_beams(scale=scale)):
+                if self.is_roi_trackable(roi_index):
+                    (mx1, my1), (mx2, my2) = md
+                    horizontal = (mx1 == mx2)
 
-                fs = np.roll(fd, -1, 0)  # coordinates shifted to the following frame
+                    fs = np.roll(fd, -1, 0)  # coordinates shifted to the following frame
 
-                x = fd[:self._aggregated_frames_buffer_index, 0]
-                y = fd[:self._aggregated_frames_buffer_index, 1]
-                x1 = fs[:self._aggregated_frames_buffer_index, 0]
-                y1 = fs[:self._aggregated_frames_buffer_index, 1]
+                    x = fd[:self._aggregated_frames_buffer_index, 0]
+                    y = fd[:self._aggregated_frames_buffer_index, 1]
+                    x1 = fs[:self._aggregated_frames_buffer_index, 0]
+                    y1 = fs[:self._aggregated_frames_buffer_index, 1]
 
-                if horizontal:
-                    crosses = (x < mx1) * (x1 > mx1) + (x > mx1) * (x1 < mx1)
+                    if horizontal:
+                        crosses = (x < mx1) * (x1 > mx1) + (x > mx1) * (x1 < mx1)
+                    else:
+                        crosses = (y < my1) * (y1 > my1) + (y > my1) * (y1 < my1)
+                    # we sum nframes to eliminate duplication
+                    values[roi_index] = crosses[:nframes].sum()
                 else:
-                    crosses = (y < my1) * (y1 > my1) + (y > my1) * (y1 < my1)
-                # we sum nframes to eliminate duplication
-                values[roi_index] = crosses[:nframes].sum()
-            else:
-                # the region is not tracked
-                values[roi_index] = 0
+                    # the region is not tracked
+                    values[roi_index] = 0
 
-            roi_index += 1
+                roi_index += 1
 
-        self._shift_data_window(nframes)
+            self._shift_data_window(nframes)
 
         return values, nframes
 
@@ -380,9 +382,10 @@ class MonitoredArea():
 
         values = np.zeros((len(self.ROIS), 2), dtype=np.int)
         # we average nframes, which is 1 less the the buffer's end so that we don't have duplication
-        values[:, 0] = x[:, :nframes].mean(axis=1)
-        values[:, 1] = y[:, :nframes].mean(axis=1)
-        self._shift_data_window(nframes)
+        if nframes > 0:
+            values[:, 0] = x[:, :nframes].mean(axis=1)
+            values[:, 1] = y[:, :nframes].mean(axis=1)
+            self._shift_data_window(nframes)
 
         return values, nframes
 
@@ -459,7 +462,19 @@ class ImageSource():
     def get_image(self):
         pass
 
-    def get_frame_time(self):
+    def get_start_time_in_seconds(self):
+        pass
+
+    def set_start_time_in_seconds(self, start_time):
+        pass
+
+    def get_end_time_in_seconds(self):
+        pass
+
+    def set_end_time_in_seconds(self, end_time):
+        pass
+
+    def get_current_frame_time_in_seconds(self):
         pass
 
     def close(self):
@@ -468,7 +483,7 @@ class ImageSource():
 
 class MovieFile(ImageSource):
 
-    def __init__(self, movie_file_path, step=1, start=None, end=None, resolution=None):
+    def __init__(self, movie_file_path, start_msecs=None, end_msecs=None, resolution=None):
         """
         :param movie_file_path: path to the movie file
         :param step: distance between frames
@@ -484,19 +499,42 @@ class MovieFile(ImageSource):
         super(MovieFile, self).__init__(resolution=resolution, size=(width, height))
 
         nframes = int(self._capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        self._fps = int(self._capture.get(cv2.CAP_PROP_FPS))
 
         self._movie_file_path = movie_file_path
-        self._start = 0 if start is None or start < 0 or start >= nframes else start
-        self._end = nframes if end is None or end > nframes or end < 0 else end
-        self._step = step or 1
+        # set the start frame
+        if start_msecs is None or start_msecs < 0:
+            self._start = 0
+        else:
+            start_frame = int(start_msecs * self._fps / 1000)
+            if start_frame < nframes:
+                self._start = start_frame
+            else:
+                self._start = nframes
+        # set the end frame
+        if end_msecs is None or end_msecs < 0:
+            self._end = nframes
+        else:
+            end_frame = int(end_msecs * self._fps / 1000)
+            if end_frame < nframes:
+                self._end = end_frame
+            else:
+                self._end = nframes
+        # set the frame increment
+        self._step = 1
         self._total_frames = nframes
-        self._fps = int(self._capture.get(cv2.CAP_PROP_FPS))
         self._current_frame = self._start
         if self._current_frame != 0:
             self._capture.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
 
     def get_fps(self):
         return self._fps
+
+    def get_start(self):
+        return self._start
+
+    def get_end(self):
+        return self._end
 
     def get_image(self):
         if self._current_frame < 0 or self._current_frame >= self._end:
@@ -515,7 +553,42 @@ class MovieFile(ImageSource):
         else:
             return False
 
-    def get_frame_time(self):
+    def update_frame_index(self, frame_index):
+        if frame_index >= self._start and frame_index < self._end:
+            self._current_frame = frame_index
+        elif frame_index < self._start:
+            self._current_frame = self._start
+        else:
+            self._current_frame = self._end
+        self._capture.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
+        res = self._capture.read()
+        return res[0], frame_index, res[1]
+
+    def get_start_time_in_seconds(self):
+        return self._start / self.get_fps()
+
+    def set_start_time_in_seconds(self, start_time):
+        start_frame = start_time * self.get_fps()
+        if start_frame < 0:
+            self._start = 0
+        elif start_frame > self._total_frames:
+            self._start = self._total_frames
+        else:
+            self._start = start_frame
+
+    def get_end_time_in_seconds(self):
+        return self._end / self.get_fps()
+
+    def set_end_time_in_seconds(self, end_time):
+        end_frame = end_time * self.get_fps()
+        if end_frame < 0:
+            self._end = 0
+        elif end_frame > self._total_frames:
+            self._end = self._total_frames
+        else:
+            self._end = end_frame
+
+    def get_current_frame_time_in_seconds(self):
         frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
         return frame_time_in_millis / 1000  # return the time in seconds
 
@@ -551,10 +624,10 @@ class MovieFile(ImageSource):
         self._capture.release()
 
 
-def prepare_monitored_areas(config, start_frame=None, end_frame=None):
+def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None):
     image_source = MovieFile(config.source,
-                             start=start_frame,
-                             end=end_frame,
+                             start_msecs=start_frame_msecs,
+                             end_msecs=end_frame_msecs,
                              resolution=config.image_size)
 
     def create_monitored_area(configured_area_index, configured_area):
@@ -585,7 +658,7 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
     not_cancelled = cancel_callback or forever
 
     while not_cancelled():
-        frame_time_pos = image_source.get_frame_time()
+        frame_time_pos = image_source.get_current_frame_time_in_seconds()
         next_frame_res = image_source.get_image()
         if not next_frame_res[0]:
             break
@@ -617,7 +690,7 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
             # prepare the frame coordinates buffer for the next frame
             monitored_area.update_frame_activity(frame_time_pos, scalef=image_source.get_scale())
 
-    # write the remaining activity that is only in memory
+    # write the remaining activity that is still in memory
     for area_index, monitored_area in enumerate(monitored_areas):
         # aggregate whatever is left in the buffers
         monitored_area.aggregate_activity(frame_time_pos, scalef=image_source.get_scale())

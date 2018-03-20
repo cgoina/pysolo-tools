@@ -3,9 +3,9 @@ from functools import partial
 
 import cv2
 import numpy as np
-from PyQt5.QtCore import pyqtSlot, QRect
+from PyQt5.QtCore import pyqtSlot, QRect, Qt
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout)
+from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider)
 
 from pysolo_video import MovieFile, MonitoredArea
 
@@ -29,24 +29,51 @@ class ImageWidget(QWidget):
         self._video_frame.setMinimumHeight(self._image_height)
         self._video_frame.setMinimumWidth(self._image_width)
         layout.addWidget(self._video_frame)
+
+        self._frame_sld = QSlider(Qt.Horizontal, self)
+        self._frame_sld.setTickPosition(QSlider.TicksBelow)
+        self._frame_sld.setTickInterval(5)
+        self._frame_sld.setVisible(False)
+        layout.addWidget(self._frame_sld)
+
         self.setLayout(layout)
 
     def _init_event_handlers(self, communication_channels):
+        self._frame_sld.valueChanged[int].connect(self._update_frame)
+        communication_channels.video_start_pos_signal.connect(self._update_frame)
         communication_channels.video_loaded_signal.connect(self._set_movie)
         communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
         communication_channels.maskfile_signal.connect(self._load_and_display_rois)
         communication_channels.monitored_area_rois_signal.connect(self._display_rois)
+        communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
+
+    @pyqtSlot(int)
+    def _update_frame(self, value):
+        if self._movie_file is not None:
+            frame = value * self._movie_file.get_fps()
+            image_exist, _, image = self._movie_file.update_frame_index(frame)
+            if image_exist:
+                self._set_image(image)
 
     @pyqtSlot(MovieFile)
     def _set_movie(self, movie_file):
         self._movie_file = movie_file
         if self._movie_file is not None:
-            _, _, self._image_frame = self._movie_file.get_image()
-            self._update_image_pixels(self._image_frame)
+            self._frame_sld.setVisible(True)
+            image_found, _, image = self._movie_file.get_image()
+            if image_found:
+                self._set_image(image)
+                self._frame_sld.setMinimum(movie_file.get_start_time_in_seconds())
+                self._frame_sld.setMaximum(movie_file.get_end_time_in_seconds())
         else:
+            self._frame_sld.setVisible(False)
             self._image_frame = None
             self._image = QImage()
             self._video_frame.setPixmap(QPixmap.fromImage(self._image))
+
+    def _set_image(self, image):
+        self._image_frame = image
+        self._update_image_pixels(self._image_frame)
 
     def _update_image_pixels(self, image):
         color_swapped_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

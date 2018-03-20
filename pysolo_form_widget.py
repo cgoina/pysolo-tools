@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import threading
 
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
-                             QGroupBox, QCheckBox, QScrollArea)
+                             QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
 from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas
@@ -39,10 +39,10 @@ class CommonOptionsFormWidget(QWidget):
 
         # acquisition time
         acq_time_lbl = QLabel('Acquisition time')
-        self._acq_time_txt = QLineEdit()
+        self._acq_time_dt = QDateTimeEdit()
         group_layout.addWidget(acq_time_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._acq_time_txt, current_layout_row, 0)
+        group_layout.addWidget(self._acq_time_dt, current_layout_row, 0)
         current_layout_row += 1
 
         # results directory widgets
@@ -103,7 +103,7 @@ class CommonOptionsFormWidget(QWidget):
     def _init_event_handlers(self):
         # source file name event handlers
         self._source_filename_btn.clicked.connect(self._select_source_file)
-        self._acq_time_txt.textChanged.connect(self._update_acq_time)
+        self._acq_time_dt.dateTimeChanged.connect(self._update_acq_time)
         # results directory event handlers
         self._results_dir_btn.clicked.connect(self._select_results_dir)
         # image size controls event handlers
@@ -138,8 +138,8 @@ class CommonOptionsFormWidget(QWidget):
             self._communication_channels.clear_video_signal.emit()
 
     def _update_acq_time(self, acq_time):
-        self._config.set_acq_time_from_str(acq_time)
-        self._acq_time_txt.setText(acq_time)
+        self._config.set_acq_time_from_str(acq_time.toString('yyyy-MM-dd HH:mm:ss'))
+        self._acq_time_dt.setDateTime(acq_time)
 
     def _select_results_dir(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog | QFileDialog.ShowDirsOnly)
@@ -204,7 +204,11 @@ class CommonOptionsFormWidget(QWidget):
         # update the video source
         self._update_source_filename(self._config.source)
         # update acquisition time
-        self._update_acq_time(self._config.get_acq_time_as_str())
+        acq_time_as_str = self._config.get_acq_time_as_str()
+        if acq_time_as_str:
+            self._update_acq_time(QDateTime.fromString(acq_time_as_str, 'yyyy-MM-dd HH:mm:ss'))
+        else:
+            self._update_acq_time(QDateTime.currentDateTime())
         # update the results folder
         self._update_results_dir(self._config.data_folder)
         # update the size
@@ -428,8 +432,8 @@ class TrackerWidget(QWidget):
         super(TrackerWidget, self).__init__(parent)
         self._communication_channels = communication_channels
         self._config = config
-        self._start_frame = -1
-        self._end_frame = -1
+        self._start_frame_msecs = -1
+        self._end_frame_msecs = -1
         self._init_ui()
         self._init_event_handlers()
 
@@ -443,19 +447,19 @@ class TrackerWidget(QWidget):
 
         start_frame_widget = QWidget()
         start_frame_layout = QVBoxLayout(start_frame_widget)
-        start_frame_lbl = QLabel('Start frame')
-        self._start_frame_txt = QLineEdit()
-        self._start_frame_txt.setValidator(frame_val_validator)
+        start_frame_lbl = QLabel('Start frame (in seconds)')
+        self._start_seconds_txt = QLineEdit()
+        self._start_seconds_txt.setValidator(frame_val_validator)
         start_frame_layout.addWidget(start_frame_lbl)
-        start_frame_layout.addWidget(self._start_frame_txt)
+        start_frame_layout.addWidget(self._start_seconds_txt)
 
         end_frame_widget = QWidget()
         end_frame_layout = QVBoxLayout(end_frame_widget)
-        end_frame_lbl = QLabel('End frame')
-        self._end_frame_txt = QLineEdit()
-        self._end_frame_txt.setValidator(frame_val_validator)
+        end_frame_lbl = QLabel('End frame (in seconds)')
+        self._end_seconds_txt = QLineEdit()
+        self._end_seconds_txt.setValidator(frame_val_validator)
         end_frame_layout.addWidget(end_frame_lbl)
-        end_frame_layout.addWidget(self._end_frame_txt)
+        end_frame_layout.addWidget(self._end_seconds_txt)
 
         group_layout.addWidget(start_frame_widget, current_layout_row, 0)
         group_layout.addWidget(end_frame_widget, current_layout_row, 1)
@@ -476,24 +480,27 @@ class TrackerWidget(QWidget):
         self.setLayout(layout)
 
     def _init_event_handlers(self):
-        self._start_frame_txt.textChanged.connect(self._update_start_frame)
-        self._end_frame_txt.textChanged.connect(self._update_end_frame)
+        self._start_seconds_txt.textChanged.connect(self._update_start_time_in_secs)
+        self._end_seconds_txt.textChanged.connect(self._update_end_time_in_secs)
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
 
-    def _update_start_frame(self, str_val):
+    def _update_start_time_in_secs(self, str_val):
         if str_val:
-            self._start_frame = int(str_val)
+            start_time_secs = int(str_val)
+            self._start_frame_msecs = start_time_secs * 1000
+            self._communication_channels.video_start_pos_signal.emit(start_time_secs)
         else:
-            self._start_frame = -1
+            self._start_frame_msecs = -1
+            self._communication_channels.video_start_pos_signal.emit(-1)
 
-    def _update_end_frame(self, str_val):
+    def _update_end_time_in_secs(self, str_val):
         if str_val:
-            self._end_frame = int(str_val)
+            self._end_frame_msecs = int(str_val) * 1000
         else:
-            self._end_frame = -1
+            self._end_frame_msecs = -1
 
     @pyqtSlot(ConfigOptions)
     def _update_config_options(self, new_config):
@@ -513,8 +520,8 @@ class TrackerWidget(QWidget):
 
         def process_frames():
             image_source, monitored_areas = prepare_monitored_areas(self._config,
-                                                                    start_frame=self._start_frame,
-                                                                    end_frame=self._end_frame)
+                                                                    start_frame_msecs=self._start_frame_msecs,
+                                                                    end_frame_msecs=self._end_frame_msecs)
 
             self._set_tracker_running()
 
@@ -525,6 +532,7 @@ class TrackerWidget(QWidget):
             self._stop_tracker()
 
         t = threading.Thread(target=process_frames)
+        t.setDaemon(True)
         t.start()
 
     def _set_tracker_running(self):
