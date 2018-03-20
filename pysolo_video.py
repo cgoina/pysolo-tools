@@ -7,7 +7,6 @@ from os.path import dirname, exists
 import cv2
 import numpy as np
 
-
 _logger = logging.getLogger('tracker')
 
 
@@ -20,6 +19,7 @@ class MonitoredArea():
     The class monitor takes care of the camera
     The class arena takes care of the flies
     """
+
     def __init__(self,
                  track_type=1,
                  sleep_deprivation_flag=0,
@@ -38,8 +38,8 @@ class MonitoredArea():
         """
         self._track_type = track_type
         self._sleep_deprivation_flag = sleep_deprivation_flag
-        self.ROIS = [] # regions of interest
-        self._beams = [] # beams: absolute coordinates
+        self.ROIS = []  # regions of interest
+        self._beams = []  # beams: absolute coordinates
         self._points_to_track = []
         self._tracking_data_buffer_size = tracking_data_buffer_size if tracking_data_buffer_size > 0 else 1
         self._tracking_data_buffer = []
@@ -211,6 +211,7 @@ class MonitoredArea():
         self._aggregated_frames_fly_coord[:, self._aggregated_frames_buffer_index] = self._current_frame_fly_coord
         self._aggregated_frames_buffer_index += 1
         self._aggregated_frame_index += 1
+
         if self._aggregated_frame_index >= self._aggregated_frames:
             # aggregate the current buffers
             self.aggregate_activity(frame_time, scalef=scalef)
@@ -221,9 +222,10 @@ class MonitoredArea():
             else:
                 # or dump the current data buffers to disk
                 self.write_activity(frame_time, extend=self._extend)
+            # reset the frame index
             self._aggregated_frame_index = 0
         elif self._aggregated_frames_buffer_index >= self._aggregated_frames_size:
-            # the data buffers reached the limit so aggregate the current buffers
+            # the frame buffers reached the limit so aggregate the current buffers
             self.aggregate_activity(frame_time, scalef=scalef)
 
         # # prepare the frame coordinate buffer for the next frame
@@ -231,13 +233,17 @@ class MonitoredArea():
 
     def aggregate_activity(self, frame_time, scalef=None):
         if self._track_type == 0:
-            activity = self._calculate_distances()
+            values, _ = self._calculate_distances()
+            activity = DistanceSum(frame_time, values)
         elif self._track_type == 1:
-            activity = VirtualBeamCrossings(frame_time, self._calculate_vbm(scale=scalef))
+            values, _ = self._calculate_vbm(scale=scalef)
+            activity = VirtualBeamCrossings(frame_time, values)
         elif self._track_type == 2:
-            activity, aggregation_op = self._calculate_position()
+            values, count = self._calculate_position()
+            activity = AveragePosition(frame_time, values, count)
         else:
             raise ValueError('Invalid track type option: %d' % self._track_type)
+
         if len(self._tracking_data_buffer) <= self._tracking_data_buffer_index:
             self._tracking_data_buffer.append(activity)
         else:
@@ -260,12 +266,12 @@ class MonitoredArea():
             # is light on or off?
             light = '0'  # changed to 0 from ? for compatability with SCAMP
             # Expand the readings to 32 flies for compatibility reasons with trikinetics  - in our case 32 ROIs
-            # since there's one fly / ROI
+            # since there's only one fly / ROI
             n_rois = len(self.ROIS)
             if extend and n_rois < 32:
-                extension = '\t' + '\t'.join(['0', ] * (32 - n_rois))
+                extension = 32 - n_rois
             else:
-                extension = ''
+                extension = 0
 
             with open(self.output_filename, 'a') as ofh:
                 for a in self._tracking_data_buffer:
@@ -279,8 +285,7 @@ class MonitoredArea():
                                                sleep_deprivation,
                                                monitor, unused, light)
                     ofh.write(row_prefix)
-                    ofh.write(a.format_values())
-                    ofh.write(extension)
+                    ofh.write(a.format_values(extension))
                     ofh.write('\n')
         self._reset_tracking_data_buffer()
 
@@ -300,14 +305,12 @@ class MonitoredArea():
         d = self._distance((x, y), (x1, y1))
 
         nframes = self._aggregated_frames_buffer_index - 1
-        values = np.zeros((nframes, len(self.ROIS)), dtype=np.int)
-
-        # we sum everything BUT the last bit of information otherwise we have data duplication
-        values[:,1:] = d.transpose()[:nframes,:]
+        # we sum nframes only so that we don't have duplication
+        values = d[:, :nframes].sum(axis=1)
 
         self._shift_data_window(nframes)
 
-        return values
+        return values, nframes
 
     def _calculate_vbm(self, scale=None):
         """
@@ -324,7 +327,7 @@ class MonitoredArea():
                 (mx1, my1), (mx2, my2) = md
                 horizontal = (mx1 == mx2)
 
-                fs = np.roll(fd, -1, 0) # coordinates shifted to the following frame
+                fs = np.roll(fd, -1, 0)  # coordinates shifted to the following frame
 
                 x = fd[:self._aggregated_frames_buffer_index, 0]
                 y = fd[:self._aggregated_frames_buffer_index, 1]
@@ -335,6 +338,7 @@ class MonitoredArea():
                     crosses = (x < mx1) * (x1 > mx1) + (x > mx1) * (x1 < mx1)
                 else:
                     crosses = (y < my1) * (y1 > my1) + (y > my1) * (y1 < my1)
+                # we sum nframes to eliminate duplication
                 values[roi_index] = crosses[:nframes].sum()
             else:
                 # the region is not tracked
@@ -344,7 +348,7 @@ class MonitoredArea():
 
         self._shift_data_window(nframes)
 
-        return values
+        return values, nframes
 
     def _relative_beams(self, scale=None):
         """
@@ -364,9 +368,6 @@ class MonitoredArea():
             )
         return beams
 
-    def _sum_values(self, x, y):
-        return x + y
-
     def _calculate_position(self, resolution=1):
         """
         Simply write out position of the fly at every time interval, as
@@ -377,13 +378,13 @@ class MonitoredArea():
         x = fs[:, :self._aggregated_frames_buffer_index, 0]
         y = fs[:, :self._aggregated_frames_buffer_index, 1]
 
-        values = []
-        for frame in range(0, nframes):
-            values.append((self._datawindow_frame_time_pos[frame + 1],'\t'.join(['%s,%s' % (x, y) for (x, y) in fs[:,frame,:]])))
-
+        values = np.zeros((len(self.ROIS), 2), dtype=np.int)
+        # we average nframes, which is 1 less the the buffer's end so that we don't have duplication
+        values[:, 0] = x[:, :nframes].mean(axis=1)
+        values[:, 1] = y[:, :nframes].mean(axis=1)
         self._shift_data_window(nframes)
 
-        return values
+        return values, nframes
 
 
 class TrackingData():
@@ -399,17 +400,42 @@ class TrackingData():
     def combine_values(self, v1, v2):
         pass
 
-    def format_values(self):
-        return '\t'.join([str(v) for v in self.values])
+    def format_values(self, extended_regions):
+        if extended_regions > 0:
+            return '\t'.join([str(v) for v in self.values] + ['0', ] * extended_regions)
+        else:
+            return '\t'.join([str(v) for v in self.values])
 
 
 class VirtualBeamCrossings(TrackingData):
 
-    def __init__(self, frame_time, values):
-        super(VirtualBeamCrossings, self).__init__(frame_time, values)
+    def combine_values(self, v1, v2):
+        return v1 + v2
+
+
+class DistanceSum(TrackingData):
 
     def combine_values(self, v1, v2):
         return v1 + v2
+
+
+class AveragePosition(TrackingData):
+
+    def __init__(self, frame_time, values, n_values):
+        super(AveragePosition, self).__init__(frame_time, values)
+        self._n_values = n_values
+
+    def aggregate_with(self, tracking_data):
+        self.frame_time = tracking_data.frame_time
+        new_values = (self.values * self._n_values + tracking_data.values * tracking_data._n_values) / (
+                    self._n_values + tracking_data._n_values)
+        self.values = new_values
+
+    def format_values(self, extended_regions):
+        if extended_regions > 0:
+            return '\t'.join(['%s,%s' % (v[0], v[1]) for v in self.values] + ['0.0,0.0', ] * extended_regions)
+        else:
+            return '\t'.join(['%s,%s' % (v[0], v[1]) for v in self.values])
 
 
 class ImageSource():
@@ -491,7 +517,7 @@ class MovieFile(ImageSource):
 
     def get_frame_time(self):
         frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
-        return frame_time_in_millis / 1000 # return the time in seconds
+        return frame_time_in_millis / 1000  # return the time in seconds
 
     def get_background(self, moving_alpha=0.2, gaussian_filter_size=(21, 21), gaussian_sigma=0.2):
         """
@@ -549,7 +575,8 @@ def prepare_monitored_areas(config, start_frame=None, end_frame=None):
                           if configured_area.track_flag]
 
 
-def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21), gaussian_sigma=1):
+def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
+                         gaussian_sigma=1):
     moving_average = None
 
     while True:
@@ -570,7 +597,7 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
 
         temp_frame = cv2.convertScaleAbs(moving_average)
 
-        background_diff = cv2.subtract(temp_frame, frame_image) # subtract the background
+        background_diff = cv2.subtract(temp_frame, frame_image)  # subtract the background
         grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
 
         binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]

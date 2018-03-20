@@ -4,9 +4,9 @@ import logging.config
 import sys
 from argparse import ArgumentParser
 
-from PyQt5.QtCore import pyqtSignal, QObject, Qt, QRect
+from PyQt5.QtCore import pyqtSignal, QObject
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
-                             QFileDialog, QAction, QMessageBox, QScrollArea, QVBoxLayout)
+                             QFileDialog, QAction, QMessageBox)
 
 from pysolo_config import load_config, ConfigOptions, save_config, MonitoredAreaOptions
 from pysolo_form_widget import FormWidget
@@ -27,14 +27,15 @@ class PySoloMainAppWindow(QMainWindow):
     def _init_ui(self):
         self._init_widgets()
         self._init_menus()
+        self._init_event_handlers()
         self.setWindowTitle('Fly Tracker')
 
     def _init_menus(self):
         main_menu = self.menuBar()
         file_menu = main_menu.addMenu('File')
 
-        load_config_act = QAction('&Open', self)
-        load_config_act.triggered.connect(self._open_config)
+        self._load_config_act = QAction('&Open', self)
+        self._load_config_act.triggered.connect(self._open_config)
 
         save_config_act = QAction('&Save', self)
         save_config_act.triggered.connect(self._save_current_config)
@@ -42,8 +43,8 @@ class PySoloMainAppWindow(QMainWindow):
         save_config_as_act = QAction('Save &As', self)
         save_config_as_act.triggered.connect(self._save_config)
 
-        clear_config_act = QAction('&Clear config', self)
-        clear_config_act.triggered.connect(self._clear_config)
+        self._clear_config_act = QAction('&Clear config', self)
+        self._clear_config_act.triggered.connect(self._clear_config)
 
         new_mask_act = QAction('New &mask', self)
         new_mask_act.triggered.connect(self._open_new_mask_dlg)
@@ -52,11 +53,11 @@ class PySoloMainAppWindow(QMainWindow):
         exit_act.setShortcut('Ctrl+Q')
         exit_act.triggered.connect(self.close)
 
-        file_menu.addAction(load_config_act)
+        file_menu.addAction(self._load_config_act)
         file_menu.addAction(save_config_act)
         file_menu.addAction(save_config_as_act)
         file_menu.addSeparator()
-        file_menu.addAction(clear_config_act)
+        file_menu.addAction(self._clear_config_act)
         file_menu.addSeparator()
         file_menu.addAction(new_mask_act)
         file_menu.addAction(exit_act)
@@ -71,6 +72,13 @@ class PySoloMainAppWindow(QMainWindow):
         layout.addWidget(image_widget)
         layout.addWidget(form_widget)
         self.setCentralWidget(main_widget)
+
+    def _init_event_handlers(self):
+        self._communication_channels.tracker_running_signal.connect(self._tracker_running_handler)
+
+    def _tracker_running_handler(self, flag):
+        self._load_config_act.setDisabled(flag)
+        self._clear_config_act.setDisabled(flag)
 
     def _open_new_mask_dlg(self):
         mask_editor = CreateMaskDlgWidget(self, self._communication_channels)
@@ -139,6 +147,7 @@ class WidgetCommunicationChannels(QObject):
     maskfile_signal = pyqtSignal(str)
     monitored_area_rois_signal = pyqtSignal(MonitoredArea)
     tracker_running_signal = pyqtSignal(bool)
+
 
 def main():
     parser = ArgumentParser(usage='prog [options]')

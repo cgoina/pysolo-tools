@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QRect
+import threading
+
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
@@ -113,7 +115,8 @@ class CommonOptionsFormWidget(QWidget):
         self._selected_area_choice.currentIndexChanged.connect(self._update_selected_area)
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
-        
+        self._communication_channels.tracker_running_signal.connect(self.setDisabled)
+
     def _select_source_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
         filename, _ = QFileDialog.getOpenFileName(self, 'Select source file',
@@ -141,8 +144,8 @@ class CommonOptionsFormWidget(QWidget):
     def _select_results_dir(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog | QFileDialog.ShowDirsOnly)
         results_dir_name = QFileDialog.getExistingDirectory(self, 'Select results directory',
-                                                          self._results_dir_txt.text(),
-                                                          options=options)
+                                                            self._results_dir_txt.text(),
+                                                            options=options)
         if results_dir_name:
             self._update_results_dir(results_dir_name)
 
@@ -326,6 +329,7 @@ class MonitoredAreaFormWidget(QWidget):
         self._communication_channels.selected_area_signal.connect(self._update_selected_area)
         # update monitored area
         self._communication_channels.monitored_area_options_signal.connect(self._update_monitored_area)
+        self._communication_channels.tracker_running_signal.connect(self.setDisabled)
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -506,17 +510,22 @@ class TrackerWidget(QWidget):
         self._start_btn.setDisabled(True)
         self._cancel_btn.setDisabled(False)
         self._communication_channels.tracker_running_signal.emit(True)
-        image_source, monitored_areas = prepare_monitored_areas(self._config,
-                                                                start_frame=self._start_frame,
-                                                                end_frame=self._end_frame)
 
-        process_image_frames(image_source, monitored_areas)
+        def process_frames():
+            image_source, monitored_areas = prepare_monitored_areas(self._config,
+                                                                    start_frame=self._start_frame,
+                                                                    end_frame=self._end_frame)
 
-        image_source.close()
+            process_image_frames(image_source, monitored_areas)
 
-        self._start_btn.setDisabled(False)
-        self._cancel_btn.setDisabled(True)
-        self._communication_channels.tracker_running_signal.emit(False)
+            image_source.close()
+
+            self._start_btn.setDisabled(False)
+            self._cancel_btn.setDisabled(True)
+            self._communication_channels.tracker_running_signal.emit(False)
+
+        t = threading.Thread(target=process_frames)
+        t.start()
 
     def _cancel_tracker(self):
         self._start_btn.setDisabled(False)
