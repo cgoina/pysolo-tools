@@ -576,10 +576,15 @@ def prepare_monitored_areas(config, start_frame=None, end_frame=None):
 
 
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
-                         gaussian_sigma=1):
+                         gaussian_sigma=1, cancel_callback=None):
     moving_average = None
 
-    while True:
+    def forever():
+        return True
+
+    not_cancelled = cancel_callback or forever
+
+    while not_cancelled():
         frame_time_pos = image_source.get_frame_time()
         next_frame_res = image_source.get_image()
         if not next_frame_res[0]:

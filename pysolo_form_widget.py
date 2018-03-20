@@ -481,7 +481,7 @@ class TrackerWidget(QWidget):
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
         self._start_btn.clicked.connect(self._start_tracker)
-        self._cancel_btn.clicked.connect(self._cancel_tracker)
+        self._cancel_btn.clicked.connect(self._stop_tracker)
 
     def _update_start_frame(self, str_val):
         if str_val:
@@ -516,18 +516,25 @@ class TrackerWidget(QWidget):
                                                                     start_frame=self._start_frame,
                                                                     end_frame=self._end_frame)
 
-            process_image_frames(image_source, monitored_areas)
+            self._set_tracker_running()
+
+            process_image_frames(image_source, monitored_areas, cancel_callback=self._is_tracker_running)
 
             image_source.close()
 
-            self._start_btn.setDisabled(False)
-            self._cancel_btn.setDisabled(True)
-            self._communication_channels.tracker_running_signal.emit(False)
+            self._stop_tracker()
 
         t = threading.Thread(target=process_frames)
         t.start()
 
-    def _cancel_tracker(self):
+    def _set_tracker_running(self):
+        self._tracker_running = True
+
+    def _is_tracker_running(self):
+        return self._tracker_running
+
+    def _stop_tracker(self):
+        self._tracker_running = False
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
         self._communication_channels.tracker_running_signal.emit(False)
