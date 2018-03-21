@@ -7,7 +7,6 @@ import pickle
 from datetime import datetime, timedelta
 from os.path import dirname, exists
 
-from multiprocess.pool import Pool
 
 _logger = logging.getLogger('tracker')
 
