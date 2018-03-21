@@ -44,6 +44,8 @@ def main():
                                                                 end_frame_msecs=args.end_frame_pos * 1000)
         process_image_frames(image_source, monitored_areas)
         image_source.close()
+    else:
+        _logger.error('Config load error: %r' % errors)
 
 
 if __name__ == '__main__':
