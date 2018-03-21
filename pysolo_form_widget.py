@@ -482,16 +482,10 @@ class TrackerWidget(QWidget):
     def _init_event_handlers(self):
         self._start_seconds_txt.textChanged.connect(self._update_start_time_in_secs)
         self._end_seconds_txt.textChanged.connect(self._update_end_time_in_secs)
-        self._communication_channels.slider_pos_signal.connect(self._update_slider_pos)
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
-
-    @pyqtSlot(int)
-    def _update_slider_pos(self, slider_pos):
-        self._start_frame_msecs = slider_pos * 1000
-        self._start_seconds_txt.setText(str(slider_pos))
 
     def _update_start_time_in_secs(self, str_val):
         if str_val:

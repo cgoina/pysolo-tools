@@ -147,7 +147,6 @@ class WidgetCommunicationChannels(QObject):
     maskfile_signal = pyqtSignal(str)
     monitored_area_rois_signal = pyqtSignal(MonitoredArea)
     video_frame_pos_signal = pyqtSignal(float, str)
-    slider_pos_signal = pyqtSignal(int)
     fly_coord_pos_signal = pyqtSignal(float, float)
     tracker_running_signal = pyqtSignal(bool)
 

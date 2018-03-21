@@ -4,9 +4,9 @@ import numpy as np
 
 from functools import partial
 
-from PyQt5.QtCore import pyqtSlot, Qt, QThread, QObject, pyqtSignal
+from PyQt5.QtCore import pyqtSlot, Qt, QThread, QObject, pyqtSignal, QRect
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider)
+from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout)
 
 from pysolo_video import MovieFile, MonitoredArea
 
@@ -36,9 +36,27 @@ class ImageWidget(QWidget):
         self._video_frame.setMinimumWidth(self._image_width)
         layout.addWidget(self._video_frame)
 
+        self._frame_sld_widget = QWidget()
+
+        frame_value_widget = QWidget()
+        frame_value_layout = QHBoxLayout(frame_value_widget)
+
+        current_frame_lbl = QLabel('Current frame:')
+
+        self._current_frame_value_lbl = QLabel('0')
+
+        frame_value_layout.addWidget(current_frame_lbl)
+        frame_value_layout.addWidget(self._current_frame_value_lbl)
+
+        frame_sld_layout = QVBoxLayout(self._frame_sld_widget)
+
         self._frame_sld = QSlider(Qt.Horizontal, self)
-        self._frame_sld.setVisible(False)
-        layout.addWidget(self._frame_sld)
+
+        frame_sld_layout.addWidget(frame_value_widget)
+        frame_sld_layout.addWidget(self._frame_sld)
+
+        self._frame_sld_widget.setVisible(False)
+        layout.addWidget(self._frame_sld_widget)
 
         self.setLayout(layout)
 
@@ -65,14 +83,14 @@ class ImageWidget(QWidget):
             self._frame_sld.setValue(sld_pos)
             image_exist, _, image = self._movie_file.update_frame_index(frame)
             if image_exist:
-                self._communication_channels.slider_pos_signal.emit(sld_pos)
+                self._current_frame_value_lbl.setText(str(sld_pos))
                 self._set_image(image)
 
     @pyqtSlot(MovieFile)
     def _set_movie(self, movie_file):
         self._movie_file = movie_file
         if self._movie_file is not None:
-            self._frame_sld.setVisible(True)
+            self._frame_sld_widget.setVisible(True)
             self._frame_sld.setTickPosition(QSlider.TicksBothSides)
             self._frame_sld.setTickInterval(self._movie_file.get_end_time_in_seconds() / self._image_width * 10)
             self._frame_sld.setMinimum(0)
@@ -82,7 +100,7 @@ class ImageWidget(QWidget):
             if image_found:
                 self._set_image(image)
         else:
-            self._frame_sld.setVisible(False)
+            self._frame_sld_widget.setVisible(False)
             self._image_frame = None
             self._image = QImage()
             self._video_frame.setPixmap(QPixmap.fromImage(self._image))
