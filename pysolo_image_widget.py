@@ -38,7 +38,6 @@ class ImageWidget(QWidget):
 
         self._frame_sld = QSlider(Qt.Horizontal, self)
         self._frame_sld.setTickPosition(QSlider.TicksBelow)
-        self._frame_sld.setTickInterval(5)
         self._frame_sld.setVisible(False)
         layout.addWidget(self._frame_sld)
 
@@ -74,6 +73,7 @@ class ImageWidget(QWidget):
         self._movie_file = movie_file
         if self._movie_file is not None:
             self._frame_sld.setVisible(True)
+            self._frame_sld.setTickInterval(self._movie_file.get_end_time_in_seconds() / self._image_width * 10)
             self._image_scale = self._movie_file.get_scale()
             image_found, _, image = self._movie_file.get_image()
             if image_found:
