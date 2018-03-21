@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-from functools import partial
-
 import cv2
 import numpy as np
-from PyQt5.QtCore import pyqtSlot, Qt
+
+from functools import partial
+
+from PyQt5.QtCore import pyqtSlot, Qt, QThread, QObject, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider)
 
@@ -14,6 +15,7 @@ class ImageWidget(QWidget):
 
     def __init__(self, parent, communication_channels, image_width=540, image_height=400):
         super(ImageWidget, self).__init__(parent)
+        self._communication_channels = communication_channels
         self._image_width = image_width
         self._image_height = image_height
         self._movie_file = None
@@ -21,8 +23,11 @@ class ImageWidget(QWidget):
         self._image_scale = None
         self._ratio = image_width / image_height
         self._image = QImage()
+        self._image_update_thread = QThread()
+        self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels)
         self._init_ui()
-        self._init_event_handlers(communication_channels)
+        self._init_event_handlers()
+        self._image_update_thread.start()
 
     def _init_ui(self):
         self._video_frame = QLabel()
@@ -39,15 +44,15 @@ class ImageWidget(QWidget):
 
         self.setLayout(layout)
 
-    def _init_event_handlers(self, communication_channels):
+    def _init_event_handlers(self):
         self._frame_sld.valueChanged[int].connect(partial(self._update_frame_pos_in_secs, unit='seconds'))
-        communication_channels.video_frame_pos_signal.connect(self._update_frame_pos_in_secs)
-        communication_channels.video_loaded_signal.connect(self._set_movie)
-        communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
-        communication_channels.maskfile_signal.connect(self._load_and_display_rois)
-        communication_channels.monitored_area_rois_signal.connect(self._display_rois)
-        communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
-        communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos)
+        self._communication_channels.video_frame_pos_signal.connect(self._update_frame_pos_in_secs)
+        self._communication_channels.video_loaded_signal.connect(self._set_movie)
+        self._communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
+        self._communication_channels.maskfile_signal.connect(self._load_and_display_rois)
+        self._communication_channels.monitored_area_rois_signal.connect(self._display_rois)
+        self._communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
+        self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos)
 
     @pyqtSlot(float, str)
     def _update_frame_pos_in_secs(self, frame_pos, unit='seconds'):
@@ -83,7 +88,7 @@ class ImageWidget(QWidget):
 
     def _set_image(self, image):
         self._image_frame = image
-        self._update_image_pixels(self._image_frame)
+        self._update_image_pixels_async(self._image_frame)
 
     def _update_image_pixels(self, image):
         color_swapped_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -98,6 +103,10 @@ class ImageWidget(QWidget):
                              color_swapped_image.shape[1],
                              QImage.Format_RGB888)
         self._video_frame.setPixmap(QPixmap.fromImage(self._image))
+
+    def _update_image_pixels_async(self, image):
+        self._image_update_worker.moveToThread(self._image_update_thread)
+        self._image_update_worker.start.emit(image)
 
     @pyqtSlot(str)
     def _load_and_display_rois(self, rois_mask_file):
@@ -114,7 +123,7 @@ class ImageWidget(QWidget):
             roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._image_scale))
             cv2.polylines(roi_image, [roi_array], isClosed=True, color=[0, 255, 255])
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
-        self._update_image_pixels(overlay)
+        self._update_image_pixels_async(overlay)
 
     @pyqtSlot(float, float)
     def _draw_fly_pos(self, x, y):
@@ -131,4 +140,18 @@ class ImageWidget(QWidget):
 
             cv2.line(self._image_frame, a, b, color, width, line_type, 0)
             cv2.line(self._image_frame, c, d, color, width, line_type, 0)
-            self._update_image_pixels(self._image_frame)
+            self._update_image_pixels_async(self._image_frame)
+
+
+class ImageWidgetUpdateWorker(QObject):
+
+    start = pyqtSignal(np.ndarray)
+
+    def __init__(self, function):
+        super(ImageWidgetUpdateWorker, self).__init__()
+        self._function = function
+        self.start.connect(self.run)
+
+    @pyqtSlot(np.ndarray)
+    def run(self, image):
+        self._function(image)
