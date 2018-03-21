@@ -46,6 +46,7 @@ class ImageWidget(QWidget):
         communication_channels.maskfile_signal.connect(self._load_and_display_rois)
         communication_channels.monitored_area_rois_signal.connect(self._display_rois)
         communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
+        communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos)
 
     @pyqtSlot(float, str)
     def _update_frame_pos_in_secs(self, frame_pos, unit='seconds'):
@@ -112,3 +113,22 @@ class ImageWidget(QWidget):
             cv2.polylines(roi_image, [roi_array], isClosed=True, color=[0, 255, 255])
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels(overlay)
+
+    @pyqtSlot(float, float)
+    def _draw_fly_pos(self, x, y):
+        if self._image_frame is not None:
+            # draw the position of the fly
+            color = (0, 0, 255)
+            width = 1
+            line_type = cv2.LINE_AA
+            scalef = self._movie_file.get_scale()
+            if scalef is None:
+                scalef = (1., 1.)
+            a = (int(x), int(y - 3 * scalef[1]))
+            b = (int(x), int(y + 3 * scalef[1]))
+            c = (int(x - 3 * scalef[0]), int(y))
+            d = (int(x + 3 * scalef[0]), int(y))
+
+            cv2.line(self._image_frame, a, b, color, width, line_type, 0)
+            cv2.line(self._image_frame, c, d, color, width, line_type, 0)
+            self._update_image_pixels(self._image_frame)

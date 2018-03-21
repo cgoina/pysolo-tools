@@ -213,6 +213,7 @@ class MonitoredArea():
         self._aggregated_frame_index += 1
 
         if self._aggregated_frame_index >= self._aggregated_frames:
+            _logger.info('Aggregate data - frame time: %ds' % frame_time)
             # aggregate the current buffers
             self.aggregate_activity(frame_time, scalef=scalef)
             # then
@@ -649,7 +650,9 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
 
 
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
-                         gaussian_sigma=1, cancel_callback=None, frame_pos_callback=None):
+                         gaussian_sigma=1,
+                         cancel_callback=None, frame_pos_callback=None,
+                         fly_coord_callback=None):
     moving_average = None
 
     def forever():
@@ -662,7 +665,7 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         next_frame_res = image_source.get_image()
         if not next_frame_res[0]:
             break
-        _logger.info('Process frame %d(frame time: %rs)' % (next_frame_res[1], frame_time_pos))
+        _logger.debug('Process frame %d(frame time: %rs)' % (next_frame_res[1], frame_time_pos))
 
         if frame_pos_callback is not None:
             frame_pos_callback(next_frame_res[1])
@@ -689,7 +692,8 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         for area_index, monitored_area in enumerate(monitored_areas):
             for roi_index, roi in enumerate(monitored_area.ROIS):
                 if monitored_area.is_roi_trackable(roi_index):
-                    process_roi(binary_image, monitored_area, roi, roi_index, image_source.get_scale())
+                    process_roi(binary_image, monitored_area, roi, roi_index, image_source.get_scale(),
+                                fly_coord_callback)
 
             # prepare the frame coordinates buffer for the next frame
             monitored_area.update_frame_activity(frame_time_pos, scalef=image_source.get_scale())
@@ -708,7 +712,7 @@ def draw_roi(roi_mask, roi):
     cv2.fillPoly(roi_mask, [roi], color=[255, 255, 255])
 
 
-def process_roi(image, monitored_area, roi, roi_index, scalef):
+def process_roi(image, monitored_area, roi, roi_index, scalef, fly_coord_callback):
     roi_mask = np.zeros(image.shape, np.uint8)
     (offset_x, offset_y), _ = monitored_area.roi_to_rect(roi, scalef)
     draw_roi(roi_mask, np.array(monitored_area.roi_to_poly(roi, scalef)))
@@ -734,5 +738,8 @@ def process_roi(image, monitored_area, roi, roi_index, scalef):
 
         if area > 400 * scalef[0] * scalef[1]:
             fly_coords = None
+
+    if fly_coords and fly_coord_callback:
+        fly_coord_callback((fly_coords[0] + offset_x, fly_coords[1] + offset_y))
 
     return monitored_area.add_fly_coords(roi_index, fly_coords)

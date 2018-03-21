@@ -520,6 +520,9 @@ class TrackerWidget(QWidget):
         def update_frame_image(frame):
             self._communication_channels.video_frame_pos_signal.emit(frame, 'frames')
 
+        def draw_fly_coord(coord):
+            self._communication_channels.fly_coord_pos_signal.emit(coord[0], coord[1])
+
         def process_frames():
             image_source, monitored_areas = prepare_monitored_areas(self._config,
                                                                     start_frame_msecs=self._start_frame_msecs,
@@ -529,7 +532,8 @@ class TrackerWidget(QWidget):
 
             process_image_frames(image_source, monitored_areas,
                                  cancel_callback=self._is_tracker_running,
-                                 frame_pos_callback=update_frame_image)
+                                 frame_pos_callback=update_frame_image,
+                                 fly_coord_callback=draw_fly_coord)
 
             image_source.close()
 
