@@ -28,6 +28,7 @@ class MonitoredArea():
                  aggregated_frames=1,
                  aggregated_frames_size=60,
                  tracking_data_buffer_size=2,
+                 extend=True,
                  acq_time=None):
         """
         :param track_type: 
@@ -49,6 +50,7 @@ class MonitoredArea():
         self._aggregated_frames = aggregated_frames if aggregated_frames > 0 else 1
         self._acq_time = datetime.now() if acq_time is None else acq_time
         self._roi_filter = None
+        self._extend = extend
 
         # shape ( rois, (x, y) ) - contains the coordinates of the current frame per ROI
         self._current_frame_fly_coord = np.zeros((1, 2), dtype=np.int)
@@ -637,7 +639,8 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
                            sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
                            fps=image_source.get_fps(),
                            aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
-                           acq_time=config.acq_time)
+                           acq_time=config.acq_time,
+                           extend=configured_area.extend_flag)
         ma.set_roi_filter(configured_area.tracked_rois_filter)
         ma.load_rois(configured_area.maskfile)
         ma.set_output(
@@ -650,6 +653,17 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
                           if configured_area.track_flag]
 
 
+def process_roi_arg_generator(monitored_areas, image_scalef):
+    for monitored_area in monitored_areas:
+        for roi_index, roi in enumerate(monitored_area.ROIS):
+            if monitored_area.is_roi_trackable(roi_index):
+                yield (monitored_area, roi, roi_index, image_scalef)
+
+
+def always_true():
+    return True
+
+
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
                          gaussian_sigma=1,
                          cancel_callback=None,
@@ -658,16 +672,7 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
     moving_average = None
     image_scalef = image_source.get_scale()
 
-    def forever():
-        return True
-
-    def process_roi_arg_generator():
-        for monitored_area in monitored_areas:
-            for roi_index, roi in enumerate(monitored_area.ROIS):
-                if monitored_area.is_roi_trackable(roi_index):
-                    yield (monitored_area, roi, roi_index, image_scalef)
-
-    not_cancelled = cancel_callback or forever
+    not_cancelled = cancel_callback or always_true
 
     while not_cancelled():
         frame_time_pos = image_source.get_current_frame_time_in_seconds()
@@ -698,9 +703,10 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         binary_image = cv2.dilate(binary_image, None, iterations=2)
         binary_image = cv2.erode(binary_image, None, iterations=2)
 
-        process_roi_p = partial(process_roi, binary_image, fly_coord_callback=fly_coord_callback)
+        def process_roi_p(monitored_area, roi, roi_index, scalef):
+            process_roi(binary_image, monitored_area, roi, roi_index, scalef, fly_coord_callback=fly_coord_callback)
 
-        for process_args in process_roi_arg_generator():
+        for process_args in process_roi_arg_generator(monitored_areas, image_scalef):
             process_roi_p(*process_args)
 
         for monitored_area in monitored_areas:
@@ -710,7 +716,7 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
     # write the remaining activity that is still in memory
     for monitored_area in monitored_areas:
         # aggregate whatever is left in the buffers
-        monitored_area.aggregate_activity(frame_time_pos, scalef=image_source.get_scale())
+        monitored_area.aggregate_activity(frame_time_pos, scalef=image_scalef)
         # then write them out to disk
         monitored_area.write_activity(frame_time_pos)
 

@@ -130,6 +130,7 @@ class MonitoredAreaOptions:
         self.tracked_rois_filter = None
         self.aggregation_interval = 60  # default to 60 frames
         self.aggregation_interval_units = 'frames'  # valid values: frames, sec, min
+        self.extend_flag = True
 
     def get_aggregation_interval_in_frames(self, fps):
         """
@@ -230,6 +231,7 @@ def load_config(filename):
         monitored_area.track_flag = get_value(monitored_area_section, 'track', default_value=True)
         monitored_area.track_type = get_value(monitored_area_section, 'tracktype')
         monitored_area.sleep_deprived_flag = get_value(monitored_area_section, 'issdmonitor', default_value=False)
+        monitored_area.extend_flag = get_value(monitored_area_section, 'extend', default_value=True, required=False)
         tracked_rois_filter = get_value(monitored_area_section, 'tracked_rois_filter', required=False)
         if type(tracked_rois_filter) is tuple:
             monitored_area.tracked_rois_filter = list(tracked_rois_filter)

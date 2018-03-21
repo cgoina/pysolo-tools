@@ -18,6 +18,7 @@ class ImageWidget(QWidget):
         self._image_height = image_height
         self._movie_file = None
         self._image_frame = None
+        self._image_scale = None
         self._ratio = image_width / image_height
         self._image = QImage()
         self._init_ui()
@@ -68,6 +69,7 @@ class ImageWidget(QWidget):
         self._movie_file = movie_file
         if self._movie_file is not None:
             self._frame_sld.setVisible(True)
+            self._image_scale = self._movie_file.get_scale()
             image_found, _, image = self._movie_file.get_image()
             if image_found:
                 self._set_image(image)
@@ -109,7 +111,7 @@ class ImageWidget(QWidget):
             return  # do nothing
         roi_image = np.zeros(self._image_frame.shape, np.uint8)
         for roi in monitored_area_rois.ROIS:
-            roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._movie_file.get_scale()))
+            roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._image_scale))
             cv2.polylines(roi_image, [roi_array], isClosed=True, color=[0, 255, 255])
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels(overlay)
@@ -121,9 +123,7 @@ class ImageWidget(QWidget):
             color = (0, 0, 255)
             width = 1
             line_type = cv2.LINE_AA
-            scalef = self._movie_file.get_scale()
-            if scalef is None:
-                scalef = (1., 1.)
+            scalef = self._image_scale if self._image_scale is not None else (1., 1.)
             a = (int(x), int(y - 3 * scalef[1]))
             b = (int(x), int(y + 3 * scalef[1]))
             c = (int(x - 3 * scalef[0]), int(y))

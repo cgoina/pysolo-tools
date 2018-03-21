@@ -38,8 +38,8 @@ def main():
 
     if len(errors) == 0:
         image_source, monitored_areas = prepare_monitored_areas(config,
-                                                                start_frame=args.start_frame,
-                                                                end_frame=args.end_frame)
+                                                                start_frame_msecs=args.start_frame,
+                                                                end_frame_msecs=args.end_frame)
         process_image_frames(image_source, monitored_areas)
         image_source.close()
 
