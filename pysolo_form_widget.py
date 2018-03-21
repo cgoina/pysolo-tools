@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import threading
 
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QThread
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
@@ -554,37 +554,6 @@ class TrackerWidget(QWidget):
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
         self._communication_channels.tracker_running_signal.emit(False)
-
-
-class WorkerThread(QThread):
-
-    def __init__(self, parent, config, communication_channels, start_frame_msecs, end_frame_msecs):
-        super(WorkerThread, self).__init__(parent)
-        self._config = config
-        self._communication_channels = communication_channels
-        self._start_frame_msecs = start_frame_msecs
-        self._end_frame_msecs = end_frame_msecs
-
-    def run(self):
-        image_source, monitored_areas = prepare_monitored_areas(self._config,
-                                                                start_frame_msecs=self._start_frame_msecs,
-                                                                end_frame_msecs=self._end_frame_msecs)
-
-        self.parent()._set_tracker_running()
-
-        process_image_frames(image_source, monitored_areas,
-                             cancel_callback=self.parent()._is_tracker_running,
-                             frame_pos_callback=self._update_frame_image,
-                             fly_coord_callback=self._draw_fly_coord)
-
-        image_source.close()
-        self.parent()._stop_tracker()
-
-    def _update_frame_image(self, frame_pos):
-        self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
-
-    def _draw_fly_coord(self, coord):
-        self._communication_channels.fly_coord_pos_signal.emit(coord[0], coord[1])
 
 
 class FormWidget(QWidget):
