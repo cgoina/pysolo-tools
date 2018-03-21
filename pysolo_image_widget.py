@@ -129,7 +129,7 @@ class ImageWidget(QWidget):
     def _draw_fly_pos(self, x, y):
         if self._image_frame is not None:
             # draw the position of the fly
-            color = (0, 0, 255)
+            color = (255, 0, 255)
             width = 1
             line_type = cv2.LINE_AA
             scalef = self._image_scale if self._image_scale is not None else (1., 1.)
