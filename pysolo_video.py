@@ -1,12 +1,13 @@
+import cv2
 import logging
+import numpy as np
 import os
 import pickle
+
 from datetime import datetime, timedelta
-from functools import partial
 from os.path import dirname, exists
 
-import cv2
-import numpy as np
+from multiprocess.pool import Pool
 
 _logger = logging.getLogger('tracker')
 
@@ -684,34 +685,15 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         if frame_pos_callback is not None:
             frame_pos_callback(next_frame_res[1])
 
-        frame_image = next_frame_res[2]
-
         # smooth the image to get rid of false positives
-        frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
+        frame_image = _smooth_image(next_frame_res[2], gaussian_filter_size, gaussian_sigma)
 
         if moving_average is None:
             moving_average = np.float32(frame_image)
         else:
             moving_average = cv2.accumulateWeighted(frame_image, moving_average, alpha=moving_alpha)
 
-        temp_frame = cv2.convertScaleAbs(moving_average)
-
-        background_diff = cv2.subtract(temp_frame, frame_image)  # subtract the background
-        grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
-
-        binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
-        binary_image = cv2.dilate(binary_image, None, iterations=2)
-        binary_image = cv2.erode(binary_image, None, iterations=2)
-
-        def process_roi_p(monitored_area, roi, roi_index, scalef):
-            process_roi(binary_image, monitored_area, roi, roi_index, scalef, fly_coord_callback=fly_coord_callback)
-
-        for process_args in process_roi_arg_generator(monitored_areas, image_scalef):
-            process_roi_p(*process_args)
-
-        for monitored_area in monitored_areas:
-            # prepare the frame coordinates buffer for the next frame
-            monitored_area.update_frame_activity(frame_time_pos, scalef=image_scalef)
+        _process_frame(frame_image, monitored_areas, frame_time_pos, image_scalef, moving_average, fly_coord_callback)
 
     # write the remaining activity that is still in memory
     for monitored_area in monitored_areas:
@@ -721,6 +703,31 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         monitored_area.write_activity(frame_time_pos)
 
     return True
+
+
+def _smooth_image(frame_image, gaussian_filter_size, gaussian_sigma):
+    return cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
+
+
+def _process_frame(frame_image, monitored_areas, frame_time_pos, image_scalef, background_average, fly_coord_callback):
+    background_image = cv2.convertScaleAbs(background_average)
+
+    background_diff = cv2.subtract(background_image, frame_image)  # subtract the background
+    grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
+
+    binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
+    binary_image = cv2.dilate(binary_image, None, iterations=2)
+    binary_image = cv2.erode(binary_image, None, iterations=2)
+
+    def process_roi_p(monitored_area, roi, roi_index, scalef):
+        process_roi(binary_image, monitored_area, roi, roi_index, scalef, fly_coord_callback=fly_coord_callback)
+
+    for process_args in process_roi_arg_generator(monitored_areas, image_scalef):
+        process_roi_p(*process_args)
+
+    for monitored_area in monitored_areas:
+        # prepare the frame coordinates buffer for the next frame
+        monitored_area.update_frame_activity(frame_time_pos, scalef=image_scalef)
 
 
 def draw_roi(roi_mask, roi):
