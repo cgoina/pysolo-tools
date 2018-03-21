@@ -1,7 +1,8 @@
-import _pickle as cPickle
 import logging
 import os
+import pickle
 from datetime import datetime, timedelta
+from functools import partial
 from os.path import dirname, exists
 
 import cv2
@@ -25,8 +26,8 @@ class MonitoredArea():
                  sleep_deprivation_flag=0,
                  fps=1,
                  aggregated_frames=1,
-                 aggregated_frames_size=19,
-                 tracking_data_buffer_size=9,
+                 aggregated_frames_size=60,
+                 tracking_data_buffer_size=2,
                  acq_time=None):
         """
         :param track_type: 
@@ -171,8 +172,8 @@ class MonitoredArea():
 
     def save_rois(self, filename):
         with open(filename, 'wb') as cf:
-            cPickle.dump(self.ROIS, cf)
-            cPickle.dump(self._points_to_track, cf)
+            pickle.dump(self.ROIS, cf)
+            pickle.dump(self._points_to_track, cf)
 
     def load_rois(self, filename):
         """
@@ -182,8 +183,8 @@ class MonitoredArea():
         """
         self._mask_file = filename
         with open(filename, 'rb') as cf:
-            self.ROIS = cPickle.load(cf)
-            self._points_to_track = cPickle.load(cf)
+            self.ROIS = pickle.load(cf)
+            self._points_to_track = pickle.load(cf)
         self._reset_data_buffers()
         for roi in self.ROIS:
             self._beams.append(self._get_midline(roi))
@@ -651,12 +652,20 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
 
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
                          gaussian_sigma=1,
-                         cancel_callback=None, frame_pos_callback=None,
+                         cancel_callback=None,
+                         frame_pos_callback=None,
                          fly_coord_callback=None):
     moving_average = None
+    image_scalef = image_source.get_scale()
 
     def forever():
         return True
+
+    def process_roi_arg_generator():
+        for monitored_area in monitored_areas:
+            for roi_index, roi in enumerate(monitored_area.ROIS):
+                if monitored_area.is_roi_trackable(roi_index):
+                    yield (monitored_area, roi, roi_index, image_scalef)
 
     not_cancelled = cancel_callback or forever
 
@@ -689,17 +698,17 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         binary_image = cv2.dilate(binary_image, None, iterations=2)
         binary_image = cv2.erode(binary_image, None, iterations=2)
 
-        for area_index, monitored_area in enumerate(monitored_areas):
-            for roi_index, roi in enumerate(monitored_area.ROIS):
-                if monitored_area.is_roi_trackable(roi_index):
-                    process_roi(binary_image, monitored_area, roi, roi_index, image_source.get_scale(),
-                                fly_coord_callback)
+        process_roi_p = partial(process_roi, binary_image, fly_coord_callback=fly_coord_callback)
 
+        for process_args in process_roi_arg_generator():
+            process_roi_p(*process_args)
+
+        for monitored_area in monitored_areas:
             # prepare the frame coordinates buffer for the next frame
-            monitored_area.update_frame_activity(frame_time_pos, scalef=image_source.get_scale())
+            monitored_area.update_frame_activity(frame_time_pos, scalef=image_scalef)
 
     # write the remaining activity that is still in memory
-    for area_index, monitored_area in enumerate(monitored_areas):
+    for monitored_area in monitored_areas:
         # aggregate whatever is left in the buffers
         monitored_area.aggregate_activity(frame_time_pos, scalef=image_source.get_scale())
         # then write them out to disk
@@ -712,7 +721,7 @@ def draw_roi(roi_mask, roi):
     cv2.fillPoly(roi_mask, [roi], color=[255, 255, 255])
 
 
-def process_roi(image, monitored_area, roi, roi_index, scalef, fly_coord_callback):
+def process_roi(image, monitored_area, roi, roi_index, scalef, fly_coord_callback=None):
     roi_mask = np.zeros(image.shape, np.uint8)
     (offset_x, offset_y), _ = monitored_area.roi_to_rect(roi, scalef)
     draw_roi(roi_mask, np.array(monitored_area.roi_to_poly(roi, scalef)))

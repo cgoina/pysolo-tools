@@ -517,8 +517,8 @@ class TrackerWidget(QWidget):
         self._cancel_btn.setDisabled(False)
         self._communication_channels.tracker_running_signal.emit(True)
 
-        def update_frame_image(frame):
-            self._communication_channels.video_frame_pos_signal.emit(frame, 'frames')
+        def update_frame_image(frame_pos):
+            self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
 
         def draw_fly_coord(coord):
             self._communication_channels.fly_coord_pos_signal.emit(coord[0], coord[1])

@@ -3,7 +3,7 @@ from functools import partial
 
 import cv2
 import numpy as np
-from PyQt5.QtCore import pyqtSlot, QRect, Qt
+from PyQt5.QtCore import pyqtSlot, Qt
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider)
 
@@ -106,7 +106,7 @@ class ImageWidget(QWidget):
     @pyqtSlot(MonitoredArea)
     def _display_rois(self, monitored_area_rois):
         if self._movie_file is None:
-            return # do nothing
+            return  # do nothing
         roi_image = np.zeros(self._image_frame.shape, np.uint8)
         for roi in monitored_area_rois.ROIS:
             roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._movie_file.get_scale()))
