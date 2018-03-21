@@ -37,7 +37,6 @@ class ImageWidget(QWidget):
         layout.addWidget(self._video_frame)
 
         self._frame_sld = QSlider(Qt.Horizontal, self)
-        self._frame_sld.setTickPosition(QSlider.TicksBelow)
         self._frame_sld.setVisible(False)
         layout.addWidget(self._frame_sld)
 
@@ -66,6 +65,7 @@ class ImageWidget(QWidget):
             self._frame_sld.setValue(sld_pos)
             image_exist, _, image = self._movie_file.update_frame_index(frame)
             if image_exist:
+                self._communication_channels.slider_pos_signal.emit(sld_pos)
                 self._set_image(image)
 
     @pyqtSlot(MovieFile)
@@ -73,13 +73,14 @@ class ImageWidget(QWidget):
         self._movie_file = movie_file
         if self._movie_file is not None:
             self._frame_sld.setVisible(True)
+            self._frame_sld.setTickPosition(QSlider.TicksBothSides)
             self._frame_sld.setTickInterval(self._movie_file.get_end_time_in_seconds() / self._image_width * 10)
+            self._frame_sld.setMinimum(0)
+            self._frame_sld.setMaximum(int(self._movie_file.get_end_time_in_seconds()))
             self._image_scale = self._movie_file.get_scale()
             image_found, _, image = self._movie_file.get_image()
             if image_found:
                 self._set_image(image)
-                self._frame_sld.setMinimum(movie_file.get_start_time_in_seconds())
-                self._frame_sld.setMaximum(movie_file.get_end_time_in_seconds())
         else:
             self._frame_sld.setVisible(False)
             self._image_frame = None
