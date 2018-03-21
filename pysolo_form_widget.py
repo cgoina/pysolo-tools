@@ -5,7 +5,7 @@ from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
-                             QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit)
+                             QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
 from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas
@@ -539,9 +539,14 @@ class TrackerWidget(QWidget):
 
             self._stop_tracker()
 
-        t = threading.Thread(target=process_frames)
-        t.setDaemon(True)
-        t.start()
+        # before starting the tracker check if the config is valid
+        config_errors = self._config.validate()
+        if len(config_errors) == 0:
+            t = threading.Thread(target=process_frames)
+            t.setDaemon(True)
+            t.start()
+        else:
+            QMessageBox.critical(self, "Configuration errors", '\n'.join(config_errors))
 
     def _set_tracker_running(self):
         self._tracker_running = True

@@ -37,6 +37,7 @@ def main():
 
     # load config file
     config, errors = load_config(args.config_file)
+    errors |= set(config.validate())
 
     if len(errors) == 0:
         image_source, monitored_areas = prepare_monitored_areas(config,

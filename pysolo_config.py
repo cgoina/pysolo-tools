@@ -84,6 +84,9 @@ class ConfigOptions:
         errors = []
         if not self.source:
             errors.append('Video source file is not defined')
+        elif not os.path.exists(self.source):
+            # file does not exist
+            errors.append('Video source file %s does not exist' % self.source)
         if not self.image_size:
             errors.append('Image size has not been set')
         if self.get_image_width() == 0:
