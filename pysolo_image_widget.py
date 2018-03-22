@@ -76,7 +76,7 @@ class ImageWidget(QWidget):
         if self._movie_file is not None:
             if unit == 'frames':
                 frame = frame_pos
-                sld_pos = int(frame_pos / self._movie_file.get_fps())
+                sld_pos = int(self._movie_file.get_frame_time(frame_pos))
             else:
                 # treat is seconds
                 frame = int(frame_pos * self._movie_file.get_fps())
@@ -89,8 +89,8 @@ class ImageWidget(QWidget):
 
     @pyqtSlot(MovieFile)
     def _set_movie(self, movie_file):
-        self._movie_file = movie_file
-        if self._movie_file is not None:
+        if movie_file is not None and movie_file.is_opened():
+            self._movie_file = movie_file
             self._frame_sld_widget.setVisible(True)
             self._frame_sld.setTickPosition(QSlider.TicksBothSides)
             self._frame_sld.setTickInterval(self._movie_file.get_end_time_in_seconds() / self._image_width * 10)
@@ -101,6 +101,7 @@ class ImageWidget(QWidget):
             if image_found:
                 self._set_image(image)
         else:
+            self._movie_file = None
             self._frame_sld_widget.setVisible(False)
             self._image_frame = None
             self._image = QImage()

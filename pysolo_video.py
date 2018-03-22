@@ -467,7 +467,13 @@ class ImageSource():
     def set_resolution(self, width, height):
         self._resolution = (width, height)
 
+    def is_opened(self):
+        return False
+
     def get_image(self):
+        pass
+
+    def get_frame_time(self, frame_index):
         pass
 
     def get_start_time_in_seconds(self):
@@ -535,6 +541,9 @@ class MovieFile(ImageSource):
         if self._current_frame != 0:
             self._capture.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
 
+    def is_opened(self):
+        return self._capture.isOpened()
+
     def get_fps(self):
         return self._fps
 
@@ -572,6 +581,13 @@ class MovieFile(ImageSource):
         res = self._capture.read()
         return res[0], frame_index, res[1]
 
+    def get_frame_time(self, frame_index):
+        fps = self.get_fps()
+        if fps:
+            return frame_index / fps
+        else:
+            return frame_index
+
     def get_start_time_in_seconds(self):
         return self._start / self.get_fps()
 
@@ -585,12 +601,16 @@ class MovieFile(ImageSource):
             self._start = start_frame
 
     def get_end_time_in_seconds(self):
-        return self._end / self.get_fps()
+        fps = self.get_fps()
+        if fps:
+            return self._end / self.get_fps()
+        else:
+            return 0
 
     def set_end_time_in_seconds(self, end_time):
         end_frame = end_time * self.get_fps()
         if end_frame < 0:
-            self._end = 0
+            self._end = self._total_frames
         elif end_frame > self._total_frames:
             self._end = self._total_frames
         else:

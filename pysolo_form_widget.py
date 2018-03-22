@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import threading
+from functools import partial
 
 from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime
 from PyQt5.QtGui import QRegExpValidator
@@ -127,11 +128,17 @@ class CommonOptionsFormWidget(QWidget):
             self._update_source_filename(filename)
 
     def _update_source_filename(self, filename):
+        movie_file = None
         if filename:
-            self._config.source = filename
+            movie_file = MovieFile(filename)
             self._source_filename_txt.setText(filename)
-            image_size = (self._config.get_image_width(), self._config.get_image_height())
-            self._communication_channels.video_loaded_signal.emit(MovieFile(filename, resolution=image_size))
+            if not movie_file.is_opened():
+                QMessageBox.critical(self, 'Movie file error', 'Error opening %s' % filename)
+
+        if movie_file is not None and movie_file.is_opened():
+            self._config.source = filename
+            movie_file.set_resolution(self._config.get_image_width(), self._config.get_image_height())
+            self._communication_channels.video_loaded_signal.emit(movie_file)
         else:
             self._config.source = None
             self._source_filename_txt.setText('')
@@ -488,6 +495,10 @@ class TrackerWidget(QWidget):
         self._end_seconds_txt.textChanged.connect(self._update_end_time_in_secs)
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
+        # update video file
+        self._communication_channels.video_loaded_signal.connect(partial(self._update_movie, True))
+        self._communication_channels.clear_video_signal.connect(partial(self._update_movie, False))
+
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
 
@@ -515,6 +526,15 @@ class TrackerWidget(QWidget):
             self._cancel_btn.setDisabled(True)
         else:
             self.setDisabled(True)
+
+    @pyqtSlot(bool)
+    def _update_movie(self, flag):
+        if not flag:
+            self.setDisabled(True)
+        else:
+            self.setDisabled(False)
+            self._start_btn.setDisabled(False)
+            self._cancel_btn.setDisabled(True)
 
     def _start_tracker(self):
         self._start_btn.setDisabled(True)
@@ -550,7 +570,7 @@ class TrackerWidget(QWidget):
             t.setDaemon(True)
             t.start()
         else:
-            QMessageBox.critical(self, "Configuration errors", '\n'.join(config_errors))
+            QMessageBox.critical(self, 'Configuration errors', '\n'.join(config_errors))
 
     def _set_tracker_running(self):
         self._tracker_running = True
