@@ -281,9 +281,13 @@ class MonitoredArea():
                 for a in self._tracking_data_buffer:
                     self._lineno += 1
                     # frame timestamp
-                    frame_dt = self._acq_time + timedelta(seconds=int(a.frame_time))
-                    frame_dt_str = frame_dt.strftime('%d %b %y\t%H:%M:%S')
+                    frame_dt = self._acq_time + timedelta(seconds=a.frame_time)
 
+                    if int(a.frame_time) == a.frame_time:
+                        time_fmt = '%d %b %y\t%H:%M:%S'
+                    else:
+                        time_fmt = '%d %b %y\t%H:%M:%S.%f'
+                    frame_dt_str = frame_dt.strftime(time_fmt)
                     row_prefix = '%s\t' * 9 % (self._lineno, frame_dt_str,
                                                active, damscan, self._track_type,
                                                sleep_deprivation,
