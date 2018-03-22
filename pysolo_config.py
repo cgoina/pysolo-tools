@@ -118,7 +118,7 @@ class ConfigOptions:
             )
         ]
         for i in range(0, self.monitored_areas_count):
-            config_sections.append(('Monitor%d' % i, self.get_monitored_area(i)._asdict()))
+            config_sections.append(('Monitor%d' % (i + 1), self.get_monitored_area(i)._asdict()))
 
         return OrderedDict(config_sections)
 
@@ -229,7 +229,7 @@ def load_config(filename):
 
     for monitored_area_index in range(0, config.monitored_areas_count):
         monitored_area = config.get_monitored_area(monitored_area_index)
-        monitored_area_section = 'Monitor%d' % monitored_area_index
+        monitored_area_section = 'Monitor%d' % (monitored_area_index + 1)
         monitored_area.maskfile = get_value(monitored_area_section, 'maskfile')
         monitored_area.track_flag = get_value(monitored_area_section, 'track', default_value=True)
         monitored_area.track_type = get_value(monitored_area_section, 'tracktype')

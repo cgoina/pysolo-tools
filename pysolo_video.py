@@ -668,7 +668,7 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
         ma.set_roi_filter(configured_area.tracked_rois_filter)
         ma.load_rois(configured_area.maskfile)
         ma.set_output(
-            os.path.join(config.data_folder, 'Monitor%02d.txt' % configured_area_index)
+            os.path.join(config.data_folder, 'Monitor%02d.txt' % (configured_area_index + 1))
         )
         return ma
 
