@@ -19,7 +19,7 @@ class PySoloMainAppWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super(PySoloMainAppWindow, self).__init__(parent)
-        self._communication_channels = WidgetCommunicationChannels()
+        self._communication_channels = WidgetCommunicationChannels(self)
         self._config_filename = None
         self._config = ConfigOptions()
         self._init_ui()
@@ -150,6 +150,9 @@ class WidgetCommunicationChannels(QObject):
     video_image_resolution_signal = pyqtSignal(int, int)
     fly_coord_pos_signal = pyqtSignal(float, float)
     tracker_running_signal = pyqtSignal(bool)
+
+    def __init__(self, parent):
+        super(WidgetCommunicationChannels, self).__init__(parent)
 
 
 def main():

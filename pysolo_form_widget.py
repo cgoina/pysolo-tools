@@ -2,7 +2,7 @@
 import threading
 from functools import partial
 
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
@@ -541,6 +541,8 @@ class TrackerWidget(QWidget):
         self._cancel_btn.setDisabled(False)
         self._communication_channels.tracker_running_signal.emit(True)
 
+        tracker_status = TrackerStatus(self, self._communication_channels, True)
+
         def update_frame_image(frame_pos):
             self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
 
@@ -552,10 +554,8 @@ class TrackerWidget(QWidget):
                                                                     start_frame_msecs=self._start_frame_msecs,
                                                                     end_frame_msecs=self._end_frame_msecs)
 
-            self._set_tracker_running()
-
             process_image_frames(image_source, monitored_areas,
-                                 cancel_callback=self._is_tracker_running,
+                                 cancel_callback=tracker_status.is_running,
                                  frame_pos_callback=update_frame_image,
                                  fly_coord_callback=draw_fly_coord)
 
@@ -572,17 +572,26 @@ class TrackerWidget(QWidget):
         else:
             QMessageBox.critical(self, 'Configuration errors', '\n'.join(config_errors))
 
-    def _set_tracker_running(self):
-        self._tracker_running = True
-
-    def _is_tracker_running(self):
-        return self._tracker_running
-
     def _stop_tracker(self):
-        self._tracker_running = False
+        self._communication_channels.tracker_running_signal.emit(False)
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
-        self._communication_channels.tracker_running_signal.emit(False)
+
+
+class TrackerStatus(QObject):
+
+    def __init__(self, parent, communication_channels, running_flag):
+        super(TrackerStatus, self).__init__(parent)
+        self._communication_channels = communication_channels
+        self._running_flag = running_flag
+        self._communication_channels.tracker_running_signal.connect(self._set_running_flag)
+
+    @pyqtSlot(bool)
+    def _set_running_flag(self, flag):
+        self._running_flag = flag
+
+    def is_running(self):
+        return self._running_flag
 
 
 class FormWidget(QWidget):
