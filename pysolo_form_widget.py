@@ -76,7 +76,7 @@ class CommonOptionsFormWidget(QWidget):
         self._n_monitored_areas_box = QSpinBox()
         self._n_monitored_areas_box.setMinimum(0)
         self._n_monitored_areas_box.setMaximum(self._max_monitored_areas)
-        n_monitored_areas_lbl = QLabel('Number of monitored regions')
+        n_monitored_areas_lbl = QLabel('Number of monitored areas')
         # add the number of monitored regions control to the layout
         group_layout.addWidget(n_monitored_areas_lbl, current_layout_row, 0)
         current_layout_row += 1
@@ -86,7 +86,7 @@ class CommonOptionsFormWidget(QWidget):
         # current region widgets
         self._selected_area_choice = QComboBox()
         self._selected_area_choice.setDisabled(True)
-        selected_region_lbl = QLabel('Select region')
+        selected_region_lbl = QLabel('Select area')
         # add selected region control to the layout
         group_layout.addWidget(selected_region_lbl, current_layout_row, 0)
         current_layout_row += 1
@@ -160,10 +160,14 @@ class CommonOptionsFormWidget(QWidget):
     def _update_image_width(self, val):
         self._config.set_image_width(val)
         self._min_width_box.setValue(val)
+        self._communication_channels.video_image_resolution_signal.emit(self._config.get_image_width(),
+                                                                        self._config.get_image_height())
 
     def _update_image_height(self, val):
         self._config.set_image_height(val)
         self._max_width_box.setValue(val)
+        self._communication_channels.video_image_resolution_signal.emit(self._config.get_image_width(),
+                                                                        self._config.get_image_height())
 
     def _update_number_of_areas(self, new_areas_counter):
         # update the config
@@ -182,7 +186,7 @@ class CommonOptionsFormWidget(QWidget):
                     self._selected_area_choice.removeItem(a)
             else:
                 for a in range(n_areas, new_areas_counter):
-                    self._selected_area_choice.addItem('Region %d' % (a + 1), a)
+                    self._selected_area_choice.addItem('Area %d' % (a + 1), a)
             self._selected_area_choice.setDisabled(False)
             if n_areas == 0:
                 self._communication_channels.selected_area_signal.emit(0)

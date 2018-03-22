@@ -69,6 +69,7 @@ class ImageWidget(QWidget):
         self._communication_channels.monitored_area_rois_signal.connect(self._display_rois)
         self._communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
         self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos)
+        self._communication_channels.video_image_resolution_signal.connect(self._set_movie_resolution)
 
     @pyqtSlot(float, str)
     def _update_frame_pos_in_secs(self, frame_pos, unit='seconds'):
@@ -104,6 +105,7 @@ class ImageWidget(QWidget):
             self._image_frame = None
             self._image = QImage()
             self._video_frame.setPixmap(QPixmap.fromImage(self._image))
+        self._communication_channels.video_frame_pos_signal.emit(0, 'frames')
 
     def _set_image(self, image):
         self._image_frame = image
@@ -126,6 +128,12 @@ class ImageWidget(QWidget):
     def _update_image_pixels_async(self, image):
         self._image_update_worker.moveToThread(self._image_update_thread)
         self._image_update_worker.start.emit(image)
+
+    @pyqtSlot(int, int)
+    def _set_movie_resolution(self, width, height):
+        if self._movie_file is not None:
+            self._movie_file.set_resolution(width, height)
+            self._image_scale = self._movie_file.get_scale()
 
     @pyqtSlot(str)
     def _load_and_display_rois(self, rois_mask_file):
