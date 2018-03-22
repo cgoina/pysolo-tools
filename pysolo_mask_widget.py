@@ -18,12 +18,12 @@ class CreateMaskDlgWidget(QDialog):
     def _init_ui(self):
         layout = QGridLayout()
 
-        area_location_lbl = QLabel('Area Location')
+        area_location_lbl = QLabel('Monitored Area')
         self._area_location_choice = QComboBox()
-        self._area_location_choice.addItem('Upper Left', 'upper_left')
-        self._area_location_choice.addItem('Upper Right', 'upper_right')
-        self._area_location_choice.addItem('Lower Left', 'lower_left')
-        self._area_location_choice.addItem('Lower Right', 'lower_right')
+        self._area_location_choice.addItem('Area 1', 'upper_left')
+        self._area_location_choice.addItem('Area 2', 'upper_right')
+        self._area_location_choice.addItem('Area 3', 'lower_left')
+        self._area_location_choice.addItem('Area 4', 'lower_right')
 
         current_widget_row = 0
         layout.addWidget(area_location_lbl, current_widget_row, 0)
