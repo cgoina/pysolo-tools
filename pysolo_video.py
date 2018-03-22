@@ -225,7 +225,7 @@ class MonitoredArea():
                 self._tracking_data_buffer_index += 1
             else:
                 # or dump the current data buffers to disk
-                self.write_activity(frame_time, extend=self._extend)
+                self.write_activity()
             # reset the frame index
             self._aggregated_frame_index = 0
         elif self._aggregated_frames_buffer_index >= self._aggregated_frames_size:
@@ -255,7 +255,7 @@ class MonitoredArea():
             # combine previous activity with the current activity
             previous_activity.aggregate_with(activity)
 
-    def write_activity(self, frame_time, extend=True):
+    def write_activity(self):
         if self.output_filename:
             # monitor is active
             active = '1'
@@ -272,7 +272,7 @@ class MonitoredArea():
             # Expand the readings to 32 flies for compatibility reasons with trikinetics  - in our case 32 ROIs
             # since there's only one fly / ROI
             n_rois = len(self.ROIS)
-            if extend and n_rois < 32:
+            if self._extend and n_rois < 32:
                 extension = 32 - n_rois
             else:
                 extension = 0
@@ -703,7 +703,7 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
         # aggregate whatever is left in the buffers
         monitored_area.aggregate_activity(frame_time_pos, scalef=image_scalef)
         # then write them out to disk
-        monitored_area.write_activity(frame_time_pos)
+        monitored_area.write_activity()
 
     return True
 
