@@ -21,7 +21,7 @@ def main():
                         help='Start frame time in seconds')
     parser.add_argument('--end-frame-time', default=-1, type=int, dest='end_frame_pos',
                         help='End frame time in seconds')
-    parser.add_argument('--nthreads', default=4, type=int, dest='nthreads')
+    parser.add_argument('--nthreads', default=1, type=int, dest='nthreads')
 
     args = parser.parse_args()
 
