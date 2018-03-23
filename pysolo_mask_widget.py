@@ -9,8 +9,8 @@ from pysolo_maskmaker import create_mask, get_mask_params
 
 class CreateMaskDlgWidget(QDialog):
 
-    def __init__(self, parent, communication_channels):
-        super(CreateMaskDlgWidget, self).__init__(parent)
+    def __init__(self, communication_channels):
+        super(CreateMaskDlgWidget, self).__init__()
         self._communication_channels = communication_channels
         self.setWindowTitle('MAsk Editor')
         self._init_ui()

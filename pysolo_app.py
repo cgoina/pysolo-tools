@@ -19,7 +19,7 @@ class PySoloMainAppWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super(PySoloMainAppWindow, self).__init__(parent)
-        self._communication_channels = WidgetCommunicationChannels(self)
+        self._communication_channels = WidgetCommunicationChannels()
         self._config_filename = None
         self._config = ConfigOptions()
         self._init_ui()
@@ -63,8 +63,8 @@ class PySoloMainAppWindow(QMainWindow):
         file_menu.addAction(exit_act)
 
     def _init_widgets(self):
-        image_widget = ImageWidget(self, self._communication_channels)
-        form_widget = FormWidget(self, self._communication_channels, self._config)
+        image_widget = ImageWidget(self._communication_channels)
+        form_widget = FormWidget(self._communication_channels, self._config)
         main_widget = QWidget()
         main_widget.setMinimumWidth(1200)
         main_widget.setMinimumHeight(800)
@@ -81,7 +81,7 @@ class PySoloMainAppWindow(QMainWindow):
         self._clear_config_act.setDisabled(flag)
 
     def _open_new_mask_dlg(self):
-        mask_editor = CreateMaskDlgWidget(self, self._communication_channels)
+        mask_editor = CreateMaskDlgWidget(self._communication_channels)
         mask_editor.exec_()
 
     def _open_config(self):
@@ -148,11 +148,8 @@ class WidgetCommunicationChannels(QObject):
     monitored_area_rois_signal = pyqtSignal(MonitoredArea)
     video_frame_pos_signal = pyqtSignal(float, str)
     video_image_resolution_signal = pyqtSignal(int, int)
-    fly_coord_pos_signal = pyqtSignal(float, float)
+    fly_coord_pos_signal = pyqtSignal(int, int)
     tracker_running_signal = pyqtSignal(bool)
-
-    def __init__(self, parent):
-        super(WidgetCommunicationChannels, self).__init__(parent)
 
 
 def main():

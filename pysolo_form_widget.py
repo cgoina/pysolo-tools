@@ -14,8 +14,8 @@ from pysolo_video import MovieFile, process_image_frames, prepare_monitored_area
 
 class CommonOptionsFormWidget(QWidget):
 
-    def __init__(self, parent, communication_channels, config, max_monitored_areas=64):
-        super(CommonOptionsFormWidget, self).__init__(parent)
+    def __init__(self, communication_channels, config, max_monitored_areas=64):
+        super(CommonOptionsFormWidget, self).__init__()
         self._communication_channels = communication_channels
         self._config = config
         self._max_monitored_areas = max_monitored_areas
@@ -231,8 +231,8 @@ class CommonOptionsFormWidget(QWidget):
 
 class MonitoredAreaFormWidget(QWidget):
 
-    def __init__(self, parent, communication_channels):
-        super(MonitoredAreaFormWidget, self).__init__(parent)
+    def __init__(self, communication_channels):
+        super(MonitoredAreaFormWidget, self).__init__()
         self._communication_channels = communication_channels
         self._monitored_area = MonitoredAreaOptions()
         self._init_ui()
@@ -439,8 +439,8 @@ class MonitoredAreaFormWidget(QWidget):
 
 class TrackerWidget(QWidget):
 
-    def __init__(self, parent, communication_channels, config):
-        super(TrackerWidget, self).__init__(parent)
+    def __init__(self, communication_channels, config):
+        super(TrackerWidget, self).__init__()
         self._communication_channels = communication_channels
         self._config = config
         self._start_frame_msecs = -1
@@ -541,7 +541,7 @@ class TrackerWidget(QWidget):
         self._cancel_btn.setDisabled(False)
         self._communication_channels.tracker_running_signal.emit(True)
 
-        tracker_status = TrackerStatus(self, self._communication_channels, True)
+        self._tracker_status = TrackerStatus(self._communication_channels, True)
 
         def update_frame_image(frame_pos):
             self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
@@ -555,9 +555,10 @@ class TrackerWidget(QWidget):
                                                                     end_frame_msecs=self._end_frame_msecs)
 
             process_image_frames(image_source, monitored_areas,
-                                 cancel_callback=tracker_status.is_running,
+                                 cancel_callback=self._tracker_status.is_running,
                                  frame_pos_callback=update_frame_image,
-                                 fly_coord_callback=draw_fly_coord)
+                                 fly_coord_callback=draw_fly_coord,
+                                 mp_pool_size=4)
 
             image_source.close()
 
@@ -580,8 +581,8 @@ class TrackerWidget(QWidget):
 
 class TrackerStatus(QObject):
 
-    def __init__(self, parent, communication_channels, running_flag):
-        super(TrackerStatus, self).__init__(parent)
+    def __init__(self, communication_channels, running_flag):
+        super(TrackerStatus, self).__init__()
         self._communication_channels = communication_channels
         self._running_flag = running_flag
         self._communication_channels.tracker_running_signal.connect(self._set_running_flag)
@@ -596,15 +597,15 @@ class TrackerStatus(QObject):
 
 class FormWidget(QWidget):
 
-    def __init__(self, parent, communication_channels, config):
-        super(FormWidget, self).__init__(parent)
+    def __init__(self, communication_channels, config):
+        super(FormWidget, self).__init__()
         self._init_ui(communication_channels, config)
 
     def _init_ui(self, communication_channels, config):
         grid_layout = QGridLayout()
-        commonOptionsFormWidget = CommonOptionsFormWidget(self, communication_channels, config)
-        monitoredAreaFormWidget = MonitoredAreaFormWidget(self, communication_channels)
-        trackerWidget = TrackerWidget(self, communication_channels, config)
+        commonOptionsFormWidget = CommonOptionsFormWidget(communication_channels, config)
+        monitoredAreaFormWidget = MonitoredAreaFormWidget(communication_channels)
+        trackerWidget = TrackerWidget(communication_channels, config)
         monitoredAreaFormWidget.setDisabled(True)
         trackerWidget._update_config_options(config)
         grid_layout.addWidget(commonOptionsFormWidget, 0, 0)

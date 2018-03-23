@@ -21,9 +21,7 @@ def main():
                         help='Start frame time in seconds')
     parser.add_argument('--end-frame-time', default=-1, type=int, dest='end_frame_pos',
                         help='End frame time in seconds')
-    parser.add_argument('-t', '--acq-time', dest='acq_time',
-                        type=lambda s: datetime.strptime(s, '%Y-%m-%d %H:%M:%S'),
-                        help='Acquisition time - format YYYY-dd-MM HH:mm:ss')
+    parser.add_argument('--nthreads', default=4, type=int, dest='nthreads')
 
     args = parser.parse_args()
 
@@ -43,7 +41,7 @@ def main():
         image_source, monitored_areas = prepare_monitored_areas(config,
                                                                 start_frame_msecs=args.start_frame_pos * 1000,
                                                                 end_frame_msecs=args.end_frame_pos * 1000)
-        process_image_frames(image_source, monitored_areas)
+        process_image_frames(image_source, monitored_areas, mp_pool_size=args.nthreads)
         image_source.close()
     else:
         _logger.error('Config load error: %r' % errors)

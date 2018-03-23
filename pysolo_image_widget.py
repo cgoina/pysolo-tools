@@ -13,8 +13,8 @@ from pysolo_video import MovieFile, MonitoredArea
 
 class ImageWidget(QWidget):
 
-    def __init__(self, parent, communication_channels, image_width=540, image_height=400):
-        super(ImageWidget, self).__init__(parent)
+    def __init__(self, communication_channels, image_width=540, image_height=400):
+        super(ImageWidget, self).__init__()
         self._communication_channels = communication_channels
         self._image_width = image_width
         self._image_height = image_height
@@ -22,7 +22,6 @@ class ImageWidget(QWidget):
         self._image_frame = None
         self._image_scale = None
         self._ratio = image_width / image_height
-        self._image = QImage()
         self._image_update_thread = QThread()
         self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels)
         self._init_ui()
@@ -61,7 +60,7 @@ class ImageWidget(QWidget):
         self.setLayout(layout)
 
     def _init_event_handlers(self):
-        self._frame_sld.valueChanged[int].connect(partial(self._update_frame_pos_in_secs, unit='seconds'))
+        self._frame_sld.valueChanged[int].connect(self._update_frame_sld_pos)
         self._communication_channels.video_frame_pos_signal.connect(self._update_frame_pos_in_secs)
         self._communication_channels.video_loaded_signal.connect(self._set_movie)
         self._communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
@@ -70,6 +69,11 @@ class ImageWidget(QWidget):
         self._communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
         self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos)
         self._communication_channels.video_image_resolution_signal.connect(self._set_movie_resolution)
+
+    def _update_frame_sld_pos(self, value, update_frame=True):
+        self._frame_sld.setValue(value)
+        if update_frame: # check the flag in order to avoid recursion
+            self._update_frame_pos_in_secs(value)
 
     @pyqtSlot(float, str)
     def _update_frame_pos_in_secs(self, frame_pos, unit='seconds'):
@@ -81,7 +85,7 @@ class ImageWidget(QWidget):
                 # treat is seconds
                 frame = int(frame_pos * self._movie_file.get_fps())
                 sld_pos = frame_pos
-            self._frame_sld.setValue(sld_pos)
+            self._update_frame_sld_pos(sld_pos, update_frame=False)
             image_exist, _, image = self._movie_file.update_frame_index(frame)
             if image_exist:
                 self._current_frame_value_lbl.setText(str(sld_pos))
@@ -92,7 +96,7 @@ class ImageWidget(QWidget):
         if movie_file is not None and movie_file.is_opened():
             self._movie_file = movie_file
             self._frame_sld_widget.setVisible(True)
-            self._frame_sld.setTickPosition(QSlider.TicksBothSides)
+            self._frame_sld.setTickPosition(QSlider.TicksBelow)
             self._frame_sld.setTickInterval(self._movie_file.get_end_time_in_seconds() / self._image_width * 10)
             self._frame_sld.setMinimum(0)
             self._frame_sld.setMaximum(int(self._movie_file.get_end_time_in_seconds()))
@@ -104,8 +108,7 @@ class ImageWidget(QWidget):
             self._movie_file = None
             self._frame_sld_widget.setVisible(False)
             self._image_frame = None
-            self._image = QImage()
-            self._video_frame.setPixmap(QPixmap.fromImage(self._image))
+            self._video_frame.setPixmap(QPixmap.fromImage(QImage()))
         self._communication_channels.video_frame_pos_signal.emit(0, 'frames')
 
     def _set_image(self, image):
@@ -120,11 +123,11 @@ class ImageWidget(QWidget):
                                          (int(color_swapped_image.shape[0] * scalef * self._ratio),
                                           int(color_swapped_image.shape[1] * scalef * self._ratio / image_ratio)),
                                          interpolation=cv2.INTER_AREA)
-        self._image = QImage(color_swapped_image,
+        image = QImage(color_swapped_image,
                              color_swapped_image.shape[0],
                              color_swapped_image.shape[1],
                              QImage.Format_RGB888)
-        self._video_frame.setPixmap(QPixmap.fromImage(self._image))
+        self._video_frame.setPixmap(QPixmap.fromImage(image))
 
     def _update_image_pixels_async(self, image):
         self._image_update_worker.moveToThread(self._image_update_thread)
@@ -153,9 +156,10 @@ class ImageWidget(QWidget):
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels_async(overlay)
 
-    @pyqtSlot(float, float)
+    @pyqtSlot(int, int)
     def _draw_fly_pos(self, x, y):
         if self._image_frame is not None:
+            image_frame = self._image_frame
             # draw the position of the fly
             color = (255, 0, 255)
             width = 1
@@ -166,9 +170,9 @@ class ImageWidget(QWidget):
             c = (int(x - 3 * scalef[0]), int(y))
             d = (int(x + 3 * scalef[0]), int(y))
 
-            cv2.line(self._image_frame, a, b, color, width, line_type, 0)
-            cv2.line(self._image_frame, c, d, color, width, line_type, 0)
-            self._update_image_pixels_async(self._image_frame)
+            cv2.line(image_frame, a, b, color, width, line_type, 0)
+            cv2.line(image_frame, c, d, color, width, line_type, 0)
+            self._update_image_pixels_async(image_frame)
 
 
 class ImageWidgetUpdateWorker(QObject):

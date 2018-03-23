@@ -5,6 +5,8 @@ import os
 import pickle
 
 from datetime import datetime, timedelta
+from functools import partial
+from multiprocessing.pool import ThreadPool
 from os.path import dirname, exists
 
 
@@ -677,47 +679,35 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
                           if configured_area.track_flag]
 
 
-def process_roi_arg_generator(monitored_areas, image_scalef):
-    for monitored_area in monitored_areas:
-        for roi_index, roi in enumerate(monitored_area.ROIS):
-            if monitored_area.is_roi_trackable(roi_index):
-                yield (monitored_area, roi, roi_index, image_scalef)
-
-
-def always_true():
-    return True
-
-
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
                          gaussian_sigma=1,
                          cancel_callback=None,
                          frame_pos_callback=None,
-                         fly_coord_callback=None):
-    moving_average = None
+                         fly_coord_callback=None,
+                         mp_pool_size=4):
     image_scalef = image_source.get_scale()
+    pool = ThreadPool(mp_pool_size)
 
-    not_cancelled = cancel_callback or always_true
+    for binary_image, frame_index, frame_time_pos in _next_binarized_image_frame(image_source, gaussian_filter_size,
+                                                                                 gaussian_sigma,
+                                                                                 moving_alpha, cancel_callback):
+        if frame_index % 1 == 0 and frame_pos_callback:
+            frame_pos_callback(frame_index)
 
-    while not_cancelled():
-        frame_time_pos = image_source.get_current_frame_time_in_seconds()
-        next_frame_res = image_source.get_image()
-        if not next_frame_res[0]:
-            break
-        _logger.debug('Process frame %d(frame time: %rs)' % (next_frame_res[1], frame_time_pos))
+        results = pool.starmap(partial(_process_roi, binary_image.copy(), scalef=image_scalef),
+                               _next_monitored_area_roi(monitored_areas))
 
-        if frame_pos_callback is not None:
-            frame_pos_callback(next_frame_res[1])
+        if frame_index % 1 == 0 and fly_coord_callback:
+            for r in results:
+                fly_coord_callback(r[0])
 
-        # smooth the image to get rid of false positives
-        frame_image = _smooth_image(next_frame_res[2], gaussian_filter_size, gaussian_sigma)
 
-        if moving_average is None:
-            moving_average = np.float32(frame_image)
-        else:
-            moving_average = cv2.accumulateWeighted(frame_image, moving_average, alpha=moving_alpha)
+        for monitored_area in monitored_areas:
+            # prepare the frame coordinates buffer for the next frame
+            monitored_area.update_frame_activity(frame_time_pos, scalef=image_scalef)
 
-        _process_frame(frame_image, monitored_areas, frame_time_pos, image_scalef, moving_average, fly_coord_callback)
-
+    frame_time_pos = image_source.get_current_frame_time_in_seconds()
+    _logger.info('Aggregate the remaining frames - frame time: %ds' % frame_time_pos)
     # write the remaining activity that is still in memory
     for monitored_area in monitored_areas:
         # aggregate whatever is left in the buffers
@@ -728,41 +718,54 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
     return True
 
 
-def _smooth_image(frame_image, gaussian_filter_size, gaussian_sigma):
-    return cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
+def _next_binarized_image_frame(image_source, gaussian_filter_size, gaussian_sigma, moving_alpha,
+                                cancel_callback=None):
+    not_cancelled = cancel_callback or _always_true
+    moving_average = None
+    while not_cancelled():
+        frame_time_pos = image_source.get_current_frame_time_in_seconds()
+        has_more_frames, frame_index, frame_image = image_source.get_image()
+        if not has_more_frames:
+            break
+        _logger.debug('Process frame %d(frame time: %rs)' % (frame_index, frame_time_pos))
+
+        # smooth the image to get rid of false positives
+        frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
+
+        if moving_average is None:
+            moving_average = np.float32(frame_image)
+        else:
+            moving_average = cv2.accumulateWeighted(frame_image, moving_average, alpha=moving_alpha)
+
+        background_image = cv2.convertScaleAbs(moving_average)
+
+        background_diff = cv2.subtract(background_image, frame_image)  # subtract the background
+        grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
+
+        binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
+        binary_image = cv2.dilate(binary_image, None, iterations=2)
+        binary_image = cv2.erode(binary_image, None, iterations=2)
+
+        yield (binary_image, frame_index, frame_time_pos)
 
 
-def _process_frame(frame_image, monitored_areas, frame_time_pos, image_scalef, background_average, fly_coord_callback):
-    background_image = cv2.convertScaleAbs(background_average)
+def _always_true():
+    return True
 
-    background_diff = cv2.subtract(background_image, frame_image)  # subtract the background
-    grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
 
-    binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
-    binary_image = cv2.dilate(binary_image, None, iterations=2)
-    binary_image = cv2.erode(binary_image, None, iterations=2)
-
-    def process_roi_p(monitored_area, roi, roi_index, scalef):
-        process_roi(binary_image, monitored_area, roi, roi_index, scalef, fly_coord_callback=fly_coord_callback)
-
-    for process_args in process_roi_arg_generator(monitored_areas, image_scalef):
-        process_roi_p(*process_args)
-
+def _next_monitored_area_roi(monitored_areas):
     for monitored_area in monitored_areas:
-        # prepare the frame coordinates buffer for the next frame
-        monitored_area.update_frame_activity(frame_time_pos, scalef=image_scalef)
+        for roi_index, roi in enumerate(monitored_area.ROIS):
+            if monitored_area.is_roi_trackable(roi_index):
+                yield (monitored_area, roi, roi_index)
 
 
-def draw_roi(roi_mask, roi):
-    cv2.fillPoly(roi_mask, [roi], color=[255, 255, 255])
-
-
-def process_roi(image, monitored_area, roi, roi_index, scalef, fly_coord_callback=None):
+def _process_roi(image, monitored_area, roi, roi_index, scalef=None):
     roi_mask = np.zeros(image.shape, np.uint8)
     (offset_x, offset_y), _ = monitored_area.roi_to_rect(roi, scalef)
-    draw_roi(roi_mask, np.array(monitored_area.roi_to_poly(roi, scalef)))
+    _mask_roi(roi_mask, np.array(monitored_area.roi_to_poly(roi, scalef)))
 
-    image_roi = cv2.bitwise_and(image, image, mask=roi_mask)
+    image_roi = cv2.bitwise_and(image, roi_mask)
     # get the contours relative to the upper left corner of the ROI
     fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE,
                                 offset=(-offset_x, -offset_y))
@@ -781,10 +784,12 @@ def process_roi(image, monitored_area, roi, roi_index, scalef, fly_coord_callbac
             fly_coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
             area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
 
-        if area > 400 * scalef[0] * scalef[1]:
+        if area > 400:
             fly_coords = None
 
-    if fly_coords and fly_coord_callback:
-        fly_coord_callback((fly_coords[0] + offset_x, fly_coords[1] + offset_y))
+    rel_fly_coord, distance = monitored_area.add_fly_coords(roi_index, fly_coords)
+    return (rel_fly_coord[0] + offset_x, rel_fly_coord[1] + offset_y), rel_fly_coord, distance
 
-    return monitored_area.add_fly_coords(roi_index, fly_coords)
+
+def _mask_roi(roi_mask, roi):
+    cv2.fillPoly(roi_mask, [roi], color=[255, 255, 255])
