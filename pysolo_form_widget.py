@@ -445,6 +445,7 @@ class TrackerWidget(QWidget):
         self._config = config
         self._start_frame_msecs = -1
         self._end_frame_msecs = -1
+        self._refresh_interval = 1
         self._init_ui()
         self._init_event_handlers()
 
@@ -476,6 +477,13 @@ class TrackerWidget(QWidget):
         group_layout.addWidget(end_frame_widget, current_layout_row, 1)
         current_layout_row += 1
 
+        self._refresh_interval_box = QSpinBox()
+        self._refresh_interval_box.setRange(0, 1000)
+        self._refresh_interval_box.setValue(self._refresh_interval)
+        group_layout.addWidget(QLabel('Refresh frame rate'), current_layout_row, 0)
+        group_layout.addWidget(self._refresh_interval_box, current_layout_row, 1)
+        current_layout_row += 1
+
         self._start_btn = QPushButton('Start')
         self._cancel_btn = QPushButton('Cancel')
 
@@ -493,6 +501,7 @@ class TrackerWidget(QWidget):
     def _init_event_handlers(self):
         self._start_seconds_txt.textChanged.connect(self._update_start_time_in_secs)
         self._end_seconds_txt.textChanged.connect(self._update_end_time_in_secs)
+        self._refresh_interval_box.valueChanged.connect(self._update_refresh_rate)
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
         # update video file
@@ -515,6 +524,9 @@ class TrackerWidget(QWidget):
             self._end_frame_msecs = int(str_val) * 1000
         else:
             self._end_frame_msecs = -1
+
+    def _update_refresh_rate(self, value):
+        self._refresh_interval = value
 
     @pyqtSlot(ConfigOptions)
     def _update_config_options(self, new_config):
@@ -543,22 +555,22 @@ class TrackerWidget(QWidget):
 
         self._tracker_status = TrackerStatus(self._communication_channels, True)
 
-        def update_frame_image(frame_pos):
-            self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
-
-        def draw_fly_coord(coord):
-            self._communication_channels.fly_coord_pos_signal.emit(coord[0], coord[1])
+        def update_frame_image(frame_pos, fly_coords, force_update=False):
+            if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
+                self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
+                self._communication_channels.fly_coord_pos_signal.emit(fly_coords)
 
         def process_frames():
+            update_frame_image(0, [], force_update=True)
+
             image_source, monitored_areas = prepare_monitored_areas(self._config,
                                                                     start_frame_msecs=self._start_frame_msecs,
                                                                     end_frame_msecs=self._end_frame_msecs)
 
             process_image_frames(image_source, monitored_areas,
                                  cancel_callback=self._tracker_status.is_running,
-                                 frame_pos_callback=update_frame_image,
-                                 fly_coord_callback=draw_fly_coord,
-                                 mp_pool_size=4)
+                                 frame_callback=update_frame_image,
+                                 mp_pool_size=1)
 
             image_source.close()
 

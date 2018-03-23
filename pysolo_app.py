@@ -148,7 +148,7 @@ class WidgetCommunicationChannels(QObject):
     monitored_area_rois_signal = pyqtSignal(MonitoredArea)
     video_frame_pos_signal = pyqtSignal(float, str)
     video_image_resolution_signal = pyqtSignal(int, int)
-    fly_coord_pos_signal = pyqtSignal(int, int)
+    fly_coord_pos_signal = pyqtSignal(list)
     tracker_running_signal = pyqtSignal(bool)
 
 

@@ -156,22 +156,31 @@ class ImageWidget(QWidget):
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels_async(overlay)
 
-    @pyqtSlot(int, int)
-    def _draw_fly_pos(self, x, y):
+    @pyqtSlot(list)
+    def _draw_fly_pos(self, fly_coords):
+        """
+        Draws a cross at each position from the fly_coords list
+        :param fly_coords: list of fly coordinates
+        :return:
+        """
         if self._image_frame is not None:
             image_frame = self._image_frame
-            # draw the position of the fly
             color = (255, 0, 255)
             width = 1
             line_type = cv2.LINE_AA
             scalef = self._image_scale if self._image_scale is not None else (1., 1.)
-            a = (int(x), int(y - 3 * scalef[1]))
-            b = (int(x), int(y + 3 * scalef[1]))
-            c = (int(x - 3 * scalef[0]), int(y))
-            d = (int(x + 3 * scalef[0]), int(y))
 
-            cv2.line(image_frame, a, b, color, width, line_type, 0)
-            cv2.line(image_frame, c, d, color, width, line_type, 0)
+            for fly_coord in fly_coords:
+                # draw the position of the fly
+                x = fly_coord[0]
+                y = fly_coord[1]
+                a = (int(x), int(y - 3 * scalef[1]))
+                b = (int(x), int(y + 3 * scalef[1]))
+                c = (int(x - 3 * scalef[0]), int(y))
+                d = (int(x + 3 * scalef[0]), int(y))
+                cv2.line(image_frame, a, b, color, width, line_type, 0)
+                cv2.line(image_frame, c, d, color, width, line_type, 0)
+
             self._update_image_pixels_async(image_frame)
 
 

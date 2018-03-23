@@ -682,8 +682,7 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
 def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
                          gaussian_sigma=1,
                          cancel_callback=None,
-                         frame_pos_callback=None,
-                         fly_coord_callback=None,
+                         frame_callback=None,
                          mp_pool_size=4):
     image_scalef = image_source.get_scale()
     pool = ThreadPool(mp_pool_size)
@@ -691,16 +690,11 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
     for binary_image, frame_index, frame_time_pos in _next_binarized_image_frame(image_source, gaussian_filter_size,
                                                                                  gaussian_sigma,
                                                                                  moving_alpha, cancel_callback):
-        if frame_index % 1 == 0 and frame_pos_callback:
-            frame_pos_callback(frame_index)
-
         results = pool.starmap(partial(_process_roi, binary_image.copy(), scalef=image_scalef),
                                _next_monitored_area_roi(monitored_areas))
 
-        if frame_index % 1 == 0 and fly_coord_callback:
-            for r in results:
-                fly_coord_callback(r[0])
-
+        if frame_callback:
+            frame_callback(frame_index, [r[0] for r in results])
 
         for monitored_area in monitored_areas:
             # prepare the frame coordinates buffer for the next frame
@@ -742,7 +736,7 @@ def _next_binarized_image_frame(image_source, gaussian_filter_size, gaussian_sig
         background_diff = cv2.subtract(background_image, frame_image)  # subtract the background
         grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
 
-        binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)[1]
+        _, binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)
         binary_image = cv2.dilate(binary_image, None, iterations=2)
         binary_image = cv2.erode(binary_image, None, iterations=2)
 
@@ -761,14 +755,10 @@ def _next_monitored_area_roi(monitored_areas):
 
 
 def _process_roi(image, monitored_area, roi, roi_index, scalef=None):
-    roi_mask = np.zeros(image.shape, np.uint8)
-    (offset_x, offset_y), _ = monitored_area.roi_to_rect(roi, scalef)
-    _mask_roi(roi_mask, np.array(monitored_area.roi_to_poly(roi, scalef)))
+    (roi_min_x, roi_min_y), (roi_max_x, roi_max_y) = monitored_area.roi_to_rect(roi, scalef)
 
-    image_roi = cv2.bitwise_and(image, roi_mask)
-    # get the contours relative to the upper left corner of the ROI
-    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE,
-                                offset=(-offset_x, -offset_y))
+    image_roi = image[roi_min_y:roi_max_y, roi_min_x:roi_max_x]
+    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
     fly_coords = None
     for fly_contour in fly_cnts[1]:
@@ -788,8 +778,4 @@ def _process_roi(image, monitored_area, roi, roi_index, scalef=None):
             fly_coords = None
 
     rel_fly_coord, distance = monitored_area.add_fly_coords(roi_index, fly_coords)
-    return (rel_fly_coord[0] + offset_x, rel_fly_coord[1] + offset_y), rel_fly_coord, distance
-
-
-def _mask_roi(roi_mask, roi):
-    cv2.fillPoly(roi_mask, [roi], color=[255, 255, 255])
+    return (rel_fly_coord[0] + roi_min_x, rel_fly_coord[1] + roi_min_y), rel_fly_coord, distance
