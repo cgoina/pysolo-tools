@@ -150,9 +150,12 @@ class ImageWidget(QWidget):
         if self._movie_file is None:
             return  # do nothing
         roi_image = np.zeros(self._image_frame.shape, np.uint8)
+        color = [0, 255, 255]
         for roi in monitored_area_rois.ROIS:
             roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._image_scale))
-            cv2.polylines(roi_image, [roi_array], isClosed=True, color=[0, 255, 255])
+            cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
+            mid1, mid2 = monitored_area_rois.get_midline(roi, self._image_scale, conv=int)
+            cv2.line(roi_image, mid1, mid2, color=color)
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels_async(overlay)
 

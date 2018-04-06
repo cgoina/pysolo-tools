@@ -124,7 +124,7 @@ class MonitoredArea():
     def add_roi(self, roi, n_flies=1):
         self.ROIS.append(roi)
         self._points_to_track.append(n_flies)
-        self._beams.append(self._get_midline(roi))
+        self._beams.append(self.get_midline(roi))
 
     def roi_to_rect(self, roi, scale=None):
         """
@@ -161,19 +161,26 @@ class MonitoredArea():
             [int(rx * scalef[0]), int(ly * scalef[1])]
         ]
 
-    def _get_midline(self, roi):
+    def get_midline(self, roi, scale=None, conv=None):
         """
         Return the position of each ROI's midline
         Will automatically determine the orientation of the vial
         """
         (x1, y1), (x2, y2) = self.roi_to_rect(roi)
         horizontal = abs(x2 - x1) > abs(y2 - y1)
+        scalef = (1, 1) if scale is None else scale
         if horizontal:
             xm = x1 + (x2 - x1) / 2
-            return (xm, y1), (xm, y2)
+            if conv:
+                return (conv(xm * scalef[0]), conv(y1 * scalef[1])),(conv(xm * scalef[0]), conv(y2 * scalef[1]))
+            else:
+                return (xm * scalef[0], y1 * scalef[1]), (xm * scalef[0], y2 * scalef[1])
         else:
             ym = y1 + (y2 - y1) / 2
-            return (x1, ym), (x2, ym)
+            if conv:
+                return (conv(x1 * scalef[0]), conv(ym * scalef[1])), (conv(x2 * scalef[0]), conv(ym * scalef[1]))
+            else:
+                return (x1 * scalef[0], ym * scalef[1]), (x2 * scalef[0], ym * scalef[1])
 
     def save_rois(self, filename):
         with open(filename, 'wb') as cf:
@@ -192,7 +199,7 @@ class MonitoredArea():
             self._points_to_track = pickle.load(cf)
         self._reset_data_buffers()
         for roi in self.ROIS:
-            self._beams.append(self._get_midline(roi))
+            self._beams.append(self.get_midline(roi))
 
     def _reset_data_buffers(self):
         self._reset_current_frame_buffer()

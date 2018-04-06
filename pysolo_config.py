@@ -115,6 +115,8 @@ class ConfigOptions:
                 'Options',
                 OrderedDict([
                     ('source', self.source),
+                    ('source_background_image',
+                     '' if self.source_background_image is None else self.source_background_image),
                     ('acq_time', self.get_acq_time_as_str()),
                     ('data_folder', self.data_folder),
                     ('fullsize', ', '.join([str(x) for x in self.image_size])),
