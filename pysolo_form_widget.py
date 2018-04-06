@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import threading
 from functools import partial
+from pathlib import Path
 
 import cv2
 import os
@@ -136,6 +137,10 @@ class CommonOptionsFormWidget(QWidget):
             self._source_filename_txt.setText(filename)
             if not movie_file.is_opened():
                 QMessageBox.critical(self, 'Movie file error', 'Error opening %s' % filename)
+            else:
+                movie_file_path = Path(filename)
+                movie_file_ts_millis = movie_file_path.stat().st_mtime * 1000
+                self._update_acq_time(QDateTime.fromMSecsSinceEpoch(int(movie_file_ts_millis)))
 
         if movie_file is not None and movie_file.is_opened():
             self._config.source = filename
@@ -493,10 +498,6 @@ class TrackerWidget(QWidget):
         group_layout.addWidget(self._cancel_btn, current_layout_row, 1)
         current_layout_row += 1
 
-        self._get_background_btn = QPushButton('Get background')
-        group_layout.addWidget(self._get_background_btn, current_layout_row, 1)
-        current_layout_row += 1
-
         # set the layout
         groupBox = QGroupBox()
         groupBox.setLayout(group_layout)
@@ -513,10 +514,9 @@ class TrackerWidget(QWidget):
         # update video file
         self._communication_channels.video_loaded_signal.connect(partial(self._update_movie, True))
         self._communication_channels.clear_video_signal.connect(partial(self._update_movie, False))
-
+        # start/stop tracker
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
-        self._get_background_btn.clicked.connect(self._calculate_background)
 
     def _update_start_time_in_secs(self, str_val):
         if str_val:
@@ -605,36 +605,6 @@ class TrackerWidget(QWidget):
         self._communication_channels.tracker_running_signal.emit(False)
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
-
-    def _calculate_background(self):
-        self._start_btn.setDisabled(True)
-        self._cancel_btn.setDisabled(False)
-        self._communication_channels.tracker_running_signal.emit(True)
-        tracker_status = TrackerStatus(self._communication_channels, True)
-
-        def process_frames_bg():
-            image_source, _ = prepare_monitored_areas(self._config,
-                                                      start_frame_msecs=self._start_frame_msecs,
-                                                      end_frame_msecs=self._end_frame_msecs)
-            if image_source.is_opened():
-                background = estimate_background(image_source,
-                                                 cancel_callback=tracker_status.is_running,
-                                                 gaussian_filter_size=(3, 3),
-                                                 gaussian_sigma=0)
-                cv2.imwrite('background.jpg', background)
-                image_source.close()
-            else:
-                QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.source)
-
-            self._stop_tracker()
-
-        config_errors = self._config.validate_source()
-        if len(config_errors) == 0:
-            t = threading.Thread(target=process_frames_bg)
-            t.setDaemon(True)
-            t.start()
-        else:
-            QMessageBox.critical(self, 'Configuration errors', '\n'.join(config_errors))
 
 
 class TrackerStatus(QObject):
