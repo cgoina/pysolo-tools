@@ -464,32 +464,35 @@ class TrackerWidget(QWidget):
         reg_ex = QRegExp('[0-9]*')
         frame_val_validator = QRegExpValidator(reg_ex)
 
-        start_frame_widget = QWidget()
-        start_frame_layout = QVBoxLayout(start_frame_widget)
         start_frame_lbl = QLabel('Start frame (in seconds)')
         self._start_seconds_txt = QLineEdit()
         self._start_seconds_txt.setValidator(frame_val_validator)
-        start_frame_layout.addWidget(start_frame_lbl)
-        start_frame_layout.addWidget(self._start_seconds_txt)
 
-        end_frame_widget = QWidget()
-        end_frame_layout = QVBoxLayout(end_frame_widget)
         end_frame_lbl = QLabel('End frame (in seconds)')
         self._end_seconds_txt = QLineEdit()
         self._end_seconds_txt.setValidator(frame_val_validator)
-        end_frame_layout.addWidget(end_frame_lbl)
-        end_frame_layout.addWidget(self._end_seconds_txt)
 
-        group_layout.addWidget(start_frame_widget, current_layout_row, 0)
-        group_layout.addWidget(end_frame_widget, current_layout_row, 1)
-        current_layout_row += 1
+        group_layout.addWidget(start_frame_lbl, current_layout_row, 0)
+        group_layout.addWidget(self._start_seconds_txt, current_layout_row + 1, 0)
+
+        group_layout.addWidget(end_frame_lbl, current_layout_row, 1)
+        group_layout.addWidget(self._end_seconds_txt, current_layout_row + 1, 1)
+
+        current_layout_row += 2
 
         self._refresh_interval_box = QSpinBox()
         self._refresh_interval_box.setRange(0, 1000)
         self._refresh_interval_box.setValue(self._refresh_interval)
+
+        self._show_rois_during_tracking = QCheckBox()
+
         group_layout.addWidget(QLabel('Refresh frame rate'), current_layout_row, 0)
-        group_layout.addWidget(self._refresh_interval_box, current_layout_row, 1)
-        current_layout_row += 1
+        group_layout.addWidget(self._refresh_interval_box, current_layout_row + 1, 0)
+
+        group_layout.addWidget(QLabel('Show ROIs during tracking'), current_layout_row, 1)
+        group_layout.addWidget(self._show_rois_during_tracking, current_layout_row + 1, 1)
+
+        current_layout_row += 2
 
         self._start_btn = QPushButton('Start')
         self._cancel_btn = QPushButton('Cancel')
@@ -562,10 +565,12 @@ class TrackerWidget(QWidget):
 
         tracker_status = TrackerStatus(self._communication_channels, True)
 
-        def update_frame_image(frame_pos, fly_coords, force_update=False):
+        def update_frame_image(frame_pos, fly_coords, force_update=False, monitored_areas=None):
             if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
                 self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
                 self._communication_channels.fly_coord_pos_signal.emit(fly_coords)
+            if monitored_areas is not None and self._show_rois_during_tracking.checkState():
+                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas)
 
         def process_frames():
             update_frame_image(0, [], force_update=True)
@@ -581,7 +586,7 @@ class TrackerWidget(QWidget):
                 process_image_frames(image_source, monitored_areas,
                                      background_image=background_image,
                                      cancel_callback=tracker_status.is_running,
-                                     frame_callback=update_frame_image,
+                                     frame_callback=partial(update_frame_image, monitored_areas=monitored_areas),
                                      gaussian_filter_size=(3, 3),
                                      gaussian_sigma=0,
                                      mp_pool_size=1)

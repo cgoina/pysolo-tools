@@ -66,6 +66,7 @@ class ImageWidget(QWidget):
         self._communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
         self._communication_channels.maskfile_signal.connect(self._load_and_display_rois)
         self._communication_channels.monitored_area_rois_signal.connect(self._display_rois)
+        self._communication_channels.all_monitored_areas_rois_signal.connect(self._display_all_monitored_areas_rois)
         self._communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
         self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos)
         self._communication_channels.video_image_resolution_signal.connect(self._set_movie_resolution)
@@ -146,16 +147,34 @@ class ImageWidget(QWidget):
         self._display_rois(monitored_area)
 
     @pyqtSlot(MonitoredArea)
-    def _display_rois(self, monitored_area_rois):
+    def _display_rois(self, monitored_area):
         if self._movie_file is None:
             return  # do nothing
         roi_image = np.zeros(self._image_frame.shape, np.uint8)
         color = [0, 255, 255]
-        for roi in monitored_area_rois.ROIS:
-            roi_array = np.array(monitored_area_rois.roi_to_poly(roi, self._image_scale))
-            cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
-            mid1, mid2 = monitored_area_rois.get_midline(roi, self._image_scale, conv=int)
-            cv2.line(roi_image, mid1, mid2, color=color)
+        for roi_index, roi in enumerate(monitored_area.ROIS):
+            if monitored_area.is_roi_trackable(roi_index):
+                roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
+                cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
+                mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
+                cv2.line(roi_image, mid1, mid2, color=color)
+
+        overlay = cv2.bitwise_xor(self._image_frame, roi_image)
+        self._update_image_pixels_async(overlay)
+
+    @pyqtSlot(list)
+    def _display_all_monitored_areas_rois(self, monitored_areas):
+        if self._movie_file is None:
+            return  # do nothing
+        roi_image = np.zeros(self._image_frame.shape, np.uint8)
+        color = [0, 255, 255]
+        for monitored_area in monitored_areas:
+            for roi_index, roi in enumerate(monitored_area.ROIS):
+                if monitored_area.is_roi_trackable(roi_index):
+                    roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
+                    cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
+                    mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
+                    cv2.line(roi_image, mid1, mid2, color=color)
         overlay = cv2.bitwise_xor(self._image_frame, roi_image)
         self._update_image_pixels_async(overlay)
 
