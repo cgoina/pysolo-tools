@@ -5,7 +5,7 @@ from pathlib import Path
 
 import cv2
 import os
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
@@ -461,6 +461,11 @@ class TrackerWidget(QWidget):
 
         current_layout_row = 0
 
+        self._timer_lbl = QLabel('')
+        self._timer = QTimer()
+        group_layout.addWidget(self._timer_lbl, current_layout_row, 0)
+        current_layout_row += 1
+
         reg_ex = QRegExp('[0-9]*')
         frame_val_validator = QRegExpValidator(reg_ex)
 
@@ -517,6 +522,8 @@ class TrackerWidget(QWidget):
         # update video file
         self._communication_channels.video_loaded_signal.connect(partial(self._update_movie, True))
         self._communication_channels.clear_video_signal.connect(partial(self._update_movie, False))
+        # update timer
+        self._timer.timeout.connect(self._update_tracker_runtime)
         # start/stop tracker
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
@@ -558,10 +565,21 @@ class TrackerWidget(QWidget):
             self._start_btn.setDisabled(False)
             self._cancel_btn.setDisabled(True)
 
+    def _update_tracker_runtime(self):
+        secs = self._start_time.elapsed() / 1000
+        mins = (secs / 60) % 60
+        hours = (secs / 3600)
+        secs = secs % 60
+        self._timer_lbl.setText('Running for: %dh:%dm:%ds' % (hours, mins, secs))
+
     def _start_tracker(self):
         self._start_btn.setDisabled(True)
         self._cancel_btn.setDisabled(False)
         self._communication_channels.tracker_running_signal.emit(True)
+        self._start_time = QTime()
+        self._start_time.start()
+        self._timer.setInterval(500)
+        self._timer.start()
 
         tracker_status = TrackerStatus(self._communication_channels, True)
 
@@ -610,6 +628,7 @@ class TrackerWidget(QWidget):
         self._communication_channels.tracker_running_signal.emit(False)
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
+        self._timer.stop()
 
 
 class TrackerStatus(QObject):
