@@ -1,4 +1,5 @@
 import cv2
+import itertools
 import logging
 import numpy as np
 import os
@@ -29,7 +30,7 @@ class MonitoredArea():
                  fps=1,
                  aggregated_frames=1,
                  aggregated_frames_size=60,
-                 tracking_data_buffer_size=2,
+                 tracking_data_buffer_size=5,
                  extend=True,
                  acq_time=None):
         """
@@ -233,9 +234,6 @@ class MonitoredArea():
         elif self._aggregated_frames_buffer_index >= self._aggregated_frames_size:
             # the frame buffers reached the limit so aggregate the current buffers
             self.aggregate_activity(frame_time, scalef=scalef)
-
-        # # prepare the frame coordinate buffer for the next frame
-        self._reset_current_frame_buffer()
 
     def aggregate_activity(self, frame_time, scalef=None):
         if self._track_type == 0:
@@ -622,36 +620,32 @@ class MovieFile(ImageSource):
         frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
         return frame_time_in_millis / 1000  # return the time in seconds
 
-    def get_background(self, moving_alpha=0.2, gaussian_filter_size=(21, 21), gaussian_sigma=0.2):
-        """
-        The method attempts to get the background image using accumulate weighted method
-        :param moving_alpha:
-        :param gaussian_filter_size:
-        :param gaussian_sigma:
-        :return:
-        """
-        next_frame_res = self.get_image()
-        frame_image = next_frame_res[2]
-        # smooth the image to get rid of false positives
-        frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
-        # initialize the moving average
-        moving_average = np.float32(frame_image)
-        while next_frame_res[0]:
-            next_frame_res = self.get_image()
-            if not next_frame_res[0]:
-                break
-            _logger.debug('Update moving average for %d' % next_frame_res[1])
-            frame_image = next_frame_res[2]
-
-            # smooth the image to get rid of false positives
-            frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
-            cv2.accumulateWeighted(frame_image, moving_average, moving_alpha)
-
-        background = cv2.convertScaleAbs(moving_average)
-        return background
-
     def close(self):
         self._capture.release()
+
+
+def estimate_background(image_source,
+                        gaussian_filter_size=(3, 3),
+                        gaussian_sigma=1,
+                        moving_alpha=0.5,
+                        cancel_callback=None):
+    background = None
+    average = None
+    nframes = 0
+    for frame_image, frame_index, frame_time_pos in _next_image_frame(image_source,
+                                                                      gaussian_filter_size,
+                                                                      gaussian_sigma,
+                                                                      moving_alpha,
+                                                                      _no_processing,
+                                                                      cancel_callback=cancel_callback):
+        nframes += 1
+        if average is None:
+            average = np.float32(frame_image)
+        else:
+            average = average + (frame_image - average) / nframes
+        background = cv2.convertScaleAbs(average)
+
+    return background
 
 
 def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None):
@@ -679,26 +673,40 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
                           if configured_area.track_flag]
 
 
-def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussian_filter_size=(21, 21),
+def process_image_frames(image_source, monitored_areas,
+                         background_image=None,
+                         gaussian_filter_size=(3, 3),
                          gaussian_sigma=1,
+                         moving_alpha=0.2,
                          cancel_callback=None,
                          frame_callback=None,
                          mp_pool_size=4):
     image_scalef = image_source.get_scale()
     pool = ThreadPool(mp_pool_size)
 
-    for binary_image, frame_index, frame_time_pos in _next_binarized_image_frame(image_source, gaussian_filter_size,
-                                                                                 gaussian_sigma,
-                                                                                 moving_alpha, cancel_callback):
-        results = pool.starmap(partial(_process_roi, binary_image.copy(), scalef=image_scalef),
-                               _next_monitored_area_roi(monitored_areas))
+    for binary_image, frame_index, frame_time_pos in _next_image_frame(image_source,
+                                                                       gaussian_filter_size,
+                                                                       gaussian_sigma,
+                                                                       moving_alpha,
+                                                                       _apply_background_mask,
+                                                                       background_image=background_image,
+                                                                       cancel_callback=cancel_callback):
+        # there is an option to use the thread pool but it appears that it really doesn't help much
+        # on the contrary - using the thread pool makes the processing slower.
+        if mp_pool_size <= 1:
+            results = list(itertools.starmap(partial(_process_roi, binary_image.copy(), scalef=image_scalef),
+                                             _next_monitored_area_roi(monitored_areas)))
+        else:
+            results = pool.starmap(partial(_process_roi, binary_image.copy(), scalef=image_scalef),
+                                   _next_monitored_area_roi(monitored_areas))
 
         if frame_callback:
             frame_callback(frame_index, [r[0] for r in results])
 
-        for monitored_area in monitored_areas:
-            # prepare the frame coordinates buffer for the next frame
+        def update_monitored_area_activity(monitored_area):
             monitored_area.update_frame_activity(frame_time_pos, scalef=image_scalef)
+
+        list(map(update_monitored_area_activity, monitored_areas))
 
     frame_time_pos = image_source.get_current_frame_time_in_seconds()
     _logger.info('Aggregate the remaining frames - frame time: %ds' % frame_time_pos)
@@ -712,35 +720,50 @@ def process_image_frames(image_source, monitored_areas, moving_alpha=0.1, gaussi
     return True
 
 
-def _next_binarized_image_frame(image_source, gaussian_filter_size, gaussian_sigma, moving_alpha,
-                                cancel_callback=None):
+def _next_image_frame(image_source, gaussian_filter_size, gaussian_sigma, moving_alpha,
+                      image_frame_processor,
+                      background_image=None,
+                      cancel_callback=None):
     not_cancelled = cancel_callback or _always_true
     moving_average = None
+    nframes = 0
     while not_cancelled():
         frame_time_pos = image_source.get_current_frame_time_in_seconds()
         has_more_frames, frame_index, frame_image = image_source.get_image()
         if not has_more_frames:
             break
         _logger.debug('Process frame %d(frame time: %rs)' % (frame_index, frame_time_pos))
+        nframes += 1
 
         # smooth the image to get rid of false positives
         frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
 
-        if moving_average is None:
-            moving_average = np.float32(frame_image)
+        if background_image is None:
+            if moving_average is None:
+                moving_average = np.float32(frame_image)
+            else:
+                moving_average = cv2.accumulateWeighted(frame_image, moving_average, alpha=moving_alpha)
+            background = cv2.convertScaleAbs(moving_average)
         else:
-            moving_average = cv2.accumulateWeighted(frame_image, moving_average, alpha=moving_alpha)
+            background = background_image
 
-        background_image = cv2.convertScaleAbs(moving_average)
+        processed_image = image_frame_processor(frame_image, background)
 
-        background_diff = cv2.subtract(background_image, frame_image)  # subtract the background
-        grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
+        yield (processed_image, frame_index, frame_time_pos)
 
-        _, binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)
-        binary_image = cv2.dilate(binary_image, None, iterations=2)
-        binary_image = cv2.erode(binary_image, None, iterations=2)
 
-        yield (binary_image, frame_index, frame_time_pos)
+def _apply_background_mask(frame_image, background_image):
+    background_diff = cv2.absdiff(frame_image, background_image)  # subtract the background
+    grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
+
+    _, binary_image = cv2.threshold(grey_image, 20, 255, cv2.THRESH_BINARY)
+    binary_image = cv2.dilate(binary_image, None, iterations=2)
+    binary_image = cv2.erode(binary_image, None, iterations=2)
+    return binary_image
+
+
+def _no_processing(frame_image, background_image):
+    return frame_image
 
 
 def _always_true():

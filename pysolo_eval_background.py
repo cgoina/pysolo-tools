@@ -7,7 +7,7 @@ import sys
 from argparse import ArgumentParser
 
 from pysolo_config import load_config
-from pysolo_video import (process_image_frames, prepare_monitored_areas)
+from pysolo_video import (process_image_frames, prepare_monitored_areas, estimate_background)
 
 
 def main():
@@ -18,13 +18,15 @@ def main():
     parser.add_argument('-l', '--log-config',
                         default='logger.conf', dest='log_config_file',
                         metavar='LOG_CONFIG_FILE', help='The full path to the log config file to open')
+    parser.add_argument('--background-image-file',
+                        default='background.jpg', dest='background_image_file',
+                        help='The full path of the saved background image')
     parser.add_argument('--start-frame-time', default=-1, type=int, dest='start_frame_pos',
                         help='Start frame time in seconds')
     parser.add_argument('--end-frame-time', default=-1, type=int, dest='end_frame_pos',
                         help='End frame time in seconds')
     parser.add_argument('--smooth-filter-size', default=3, type=int, dest='gaussian_filter_size',
                         help='End frame time in seconds')
-    parser.add_argument('--nthreads', default=1, type=int, dest='nthreads')
 
     args = parser.parse_args()
 
@@ -38,21 +40,17 @@ def main():
 
     # load config file
     config, errors = load_config(args.config_file)
-    errors |= set(config.validate())
+    errors |= set(config.validate_source())
 
     if len(errors) == 0:
-        image_source, monitored_areas = prepare_monitored_areas(config,
-                                                                start_frame_msecs=args.start_frame_pos * 1000,
-                                                                end_frame_msecs=args.end_frame_pos * 1000)
+        image_source, _ = prepare_monitored_areas(config,
+                                                  start_frame_msecs=args.start_frame_pos * 1000,
+                                                  end_frame_msecs=args.end_frame_pos * 1000)
         if (image_source.is_opened()):
-            background_image = None
-            if config.source_background_image and os.path.exists(config.source_background_image):
-                background_image = cv2.imread(config.source_background_image)
-            process_image_frames(image_source, monitored_areas,
-                                 background_image=background_image,
-                                 gaussian_filter_size=(args.gaussian_filter_size, args.gaussian_filter_size),
-                                 gaussian_sigma=0,
-                                 mp_pool_size=args.nthreads)
+            background_image = estimate_background(image_source,
+                                                   gaussian_filter_size=(args.gaussian_filter_size, args.gaussian_filter_size),
+                                                   gaussian_sigma=0)
+            cv2.imwrite(args.background_image_file, background_image)
             image_source.close()
         else:
             _logger.error('Error opening %s' % config.source)

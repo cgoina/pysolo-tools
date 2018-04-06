@@ -10,6 +10,7 @@ class ConfigOptions:
 
     def __init__(self):
         self.source = None
+        self.source_background_image = None
         self.acq_time = None
         self.data_folder = None
         self.image_size = None
@@ -81,6 +82,19 @@ class ConfigOptions:
                     self.add_monitored_area(MonitoredAreaOptions())
 
     def validate(self):
+        errors = self.validate_source()
+        if self.monitored_areas_count == 0:
+            errors.append('Number of monitored areas must be greater than 0')
+        elif len(self._monitored_areas) < self.monitored_areas_count:
+            errors.append('Number of monitored areas cannot be greater than the number of configured areas')
+
+        def monitored_area_validation(monitored_area, monitored_area_index):
+            return ['Region %d: %s' % (monitored_area_index + 1, err) for err in monitored_area.validate()]
+
+        return errors + list(chain.from_iterable([monitored_area_validation(a, ai)
+                                                  for ai, a in enumerate(self.get_monitored_areas())]))
+
+    def validate_source(self):
         errors = []
         if not self.source:
             errors.append('Video source file is not defined')
@@ -93,16 +107,7 @@ class ConfigOptions:
             errors.append('Image width cannot be 0')
         if self.get_image_height() == 0:
             errors.append('Image height cannot be 0')
-        if self.monitored_areas_count == 0:
-            errors.append('Number of monitored areas must be greater than 0')
-        elif len(self._monitored_areas) < self.monitored_areas_count:
-            errors.append('Number of monitored areas cannot be greater than the number of configured areas')
-
-        def monitored_area_validation(monitored_area, monitored_area_index):
-            return ['Region %d: %s' % (monitored_area_index + 1, err) for err in monitored_area.validate()]
-
-        return errors + list(chain.from_iterable([monitored_area_validation(a, ai)
-                                                  for ai, a in enumerate(self.get_monitored_areas())]))
+        return errors
 
     def _asdict(self):
         config_sections = [
@@ -222,6 +227,7 @@ def load_config(filename):
         return _convert_val(val) if use_default_converter else val
 
     config.source = get_value('Options', 'source')
+    config.source_background_image = get_value('Options', 'source_background_image', required=False)
     config.set_acq_time_from_str(get_value('Options', 'acq_time', required=False, use_default_converter=False))
     config.data_folder = get_value('Options', 'data_folder')
     config.image_size = get_value('Options', 'fullsize')

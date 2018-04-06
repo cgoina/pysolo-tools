@@ -2,6 +2,8 @@
 import threading
 from functools import partial
 
+import cv2
+import os
 from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
@@ -9,7 +11,7 @@ from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
-from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas
+from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas, estimate_background
 
 
 class CommonOptionsFormWidget(QWidget):
@@ -491,6 +493,10 @@ class TrackerWidget(QWidget):
         group_layout.addWidget(self._cancel_btn, current_layout_row, 1)
         current_layout_row += 1
 
+        self._get_background_btn = QPushButton('Get background')
+        group_layout.addWidget(self._get_background_btn, current_layout_row, 1)
+        current_layout_row += 1
+
         # set the layout
         groupBox = QGroupBox()
         groupBox.setLayout(group_layout)
@@ -510,6 +516,7 @@ class TrackerWidget(QWidget):
 
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
+        self._get_background_btn.clicked.connect(self._calculate_background)
 
     def _update_start_time_in_secs(self, str_val):
         if str_val:
@@ -553,7 +560,7 @@ class TrackerWidget(QWidget):
         self._cancel_btn.setDisabled(False)
         self._communication_channels.tracker_running_signal.emit(True)
 
-        self._tracker_status = TrackerStatus(self._communication_channels, True)
+        tracker_status = TrackerStatus(self._communication_channels, True)
 
         def update_frame_image(frame_pos, fly_coords, force_update=False):
             if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
@@ -567,12 +574,21 @@ class TrackerWidget(QWidget):
                                                                     start_frame_msecs=self._start_frame_msecs,
                                                                     end_frame_msecs=self._end_frame_msecs)
 
-            process_image_frames(image_source, monitored_areas,
-                                 cancel_callback=self._tracker_status.is_running,
-                                 frame_callback=update_frame_image,
-                                 mp_pool_size=1)
+            if image_source.is_opened():
+                background_image = None
+                if self._config.source_background_image and os.path.exists(self._config.source_background_image):
+                    background_image = cv2.imread(self._config.source_background_image)
+                process_image_frames(image_source, monitored_areas,
+                                     background_image=background_image,
+                                     cancel_callback=tracker_status.is_running,
+                                     frame_callback=update_frame_image,
+                                     gaussian_filter_size=(3, 3),
+                                     gaussian_sigma=0,
+                                     mp_pool_size=1)
 
-            image_source.close()
+                image_source.close()
+            else:
+                QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.source)
 
             self._stop_tracker()
 
@@ -589,6 +605,36 @@ class TrackerWidget(QWidget):
         self._communication_channels.tracker_running_signal.emit(False)
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
+
+    def _calculate_background(self):
+        self._start_btn.setDisabled(True)
+        self._cancel_btn.setDisabled(False)
+        self._communication_channels.tracker_running_signal.emit(True)
+        tracker_status = TrackerStatus(self._communication_channels, True)
+
+        def process_frames_bg():
+            image_source, _ = prepare_monitored_areas(self._config,
+                                                      start_frame_msecs=self._start_frame_msecs,
+                                                      end_frame_msecs=self._end_frame_msecs)
+            if image_source.is_opened():
+                background = estimate_background(image_source,
+                                                 cancel_callback=tracker_status.is_running,
+                                                 gaussian_filter_size=(3, 3),
+                                                 gaussian_sigma=0)
+                cv2.imwrite('background.jpg', background)
+                image_source.close()
+            else:
+                QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.source)
+
+            self._stop_tracker()
+
+        config_errors = self._config.validate_source()
+        if len(config_errors) == 0:
+            t = threading.Thread(target=process_frames_bg)
+            t.setDaemon(True)
+            t.start()
+        else:
+            QMessageBox.critical(self, 'Configuration errors', '\n'.join(config_errors))
 
 
 class TrackerStatus(QObject):
