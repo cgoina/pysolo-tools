@@ -5,7 +5,7 @@ from pathlib import Path
 
 import cv2
 import os
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime, pyqtSignal
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
@@ -445,6 +445,7 @@ class MonitoredAreaFormWidget(QWidget):
 
 
 class TrackerWidget(QWidget):
+    _stop_timer_signal = pyqtSignal()
 
     def __init__(self, communication_channels, config):
         super(TrackerWidget, self).__init__()
@@ -524,6 +525,7 @@ class TrackerWidget(QWidget):
         self._communication_channels.clear_video_signal.connect(partial(self._update_movie, False))
         # update timer
         self._timer.timeout.connect(self._update_tracker_runtime)
+        self._stop_timer_signal.connect(self._stop_timer)
         # start/stop tracker
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
@@ -628,8 +630,10 @@ class TrackerWidget(QWidget):
         self._communication_channels.tracker_running_signal.emit(False)
         self._start_btn.setDisabled(False)
         self._cancel_btn.setDisabled(True)
-        self._timer.stop()
+        self._stop_timer_signal.emit()
 
+    def _stop_timer(self):
+        self._timer.stop()
 
 class TrackerStatus(QObject):
 
