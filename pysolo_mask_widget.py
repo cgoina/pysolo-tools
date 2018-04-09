@@ -2,7 +2,8 @@
 
 from PyQt5.QtCore import QRegExp
 from PyQt5.QtGui import QRegExpValidator
-from PyQt5.QtWidgets import QPushButton, QLabel, QComboBox, QDialog, QGridLayout, QSpinBox, QLineEdit, QFileDialog
+from PyQt5.QtWidgets import QPushButton, QLabel, QComboBox, QDialog, QGridLayout, QSpinBox, QLineEdit, QFileDialog, \
+    QCheckBox
 
 from pysolo_maskmaker import create_mask, get_mask_params
 
@@ -102,9 +103,13 @@ class CreateMaskDlgWidget(QDialog):
         current_widget_row += 2
 
         cancel_btn = QPushButton('Cancel')
-        overlay_btn = QPushButton('Overlay mask')
+        self._overlay_check = QCheckBox()
+
         save_btn = QPushButton('Save...')
-        layout.addWidget(overlay_btn, current_widget_row, 0, 1, 2)
+
+        layout.addWidget(self._overlay_check, current_widget_row, 0)
+        layout.addWidget(QLabel('Overlay mask'), current_widget_row, 1)
+
         current_widget_row += 2
 
         layout.addWidget(cancel_btn, current_widget_row, 0)
@@ -113,9 +118,19 @@ class CreateMaskDlgWidget(QDialog):
         self._update_mask_params()
         self._area_location_choice.currentIndexChanged.connect(self._update_mask_params)
 
+        self._rows_box.valueChanged.connect(self._update_mask_overlay)
+        self._cols_box.valueChanged.connect(self._update_mask_overlay)
+        self.x1_txt.textChanged.connect(self._update_mask_overlay)
+        self.x_span_txt.textChanged.connect(self._update_mask_overlay)
+        self.x_gap_txt.textChanged.connect(self._update_mask_overlay)
+        self.x_tilt_txt.textChanged.connect(self._update_mask_overlay)
+        self.y1_txt.textChanged.connect(self._update_mask_overlay)
+        self.y_len_txt.textChanged.connect(self._update_mask_overlay)
+        self.y_sep_txt.textChanged.connect(self._update_mask_overlay)
+        self.y_tilt_txt.textChanged.connect(self._update_mask_overlay)
+
         cancel_btn.clicked.connect(self.close)
         save_btn.clicked.connect(self._save_mask)
-        overlay_btn.clicked.connect(self._draw_mask)
 
         self.setLayout(layout)
 
@@ -130,6 +145,7 @@ class CreateMaskDlgWidget(QDialog):
         self.y_len_txt.setText(str(mask_params['y_len']))
         self.y_sep_txt.setText(str(mask_params['y_sep']))
         self.y_tilt_txt.setText(str(mask_params['y_tilt']))
+        self._update_mask_overlay()
 
     def _save_mask(self):
         # open the file dialog and save the mask
@@ -159,17 +175,21 @@ class CreateMaskDlgWidget(QDialog):
             arena.save_rois(mask_fileName)
             self.close() # close if everything went well
 
+    def _update_mask_overlay(self):
+        if self._overlay_check.checkState():
+            self._draw_mask()
+
     def _draw_mask(self):
         mask_params = {
-            'x1': float(self.x1_txt.text()),
-            'x_span': float(self.x_span_txt.text()),
-            'x_gap': float(self.x_gap_txt.text()),
-            'x_tilt': float(self.x_tilt_txt.text()),
+            'x1': float(self.x1_txt.text()) if self.x1_txt.text() else 0,
+            'x_span': float(self.x_span_txt.text()) if self.x_span_txt.text() else 0,
+            'x_gap': float(self.x_gap_txt.text()) if self.x_gap_txt.text() else 0,
+            'x_tilt': float(self.x_tilt_txt.text()) if self.x_tilt_txt.text() else 0,
 
-            'y1': float(self.y1_txt.text()),
-            'y_len': float(self.y_len_txt.text()),
-            'y_sep': float(self.y_sep_txt.text()),
-            'y_tilt': float(self.y_tilt_txt.text()),
+            'y1': float(self.y1_txt.text()) if self.y1_txt.text() else 0,
+            'y_len': float(self.y_len_txt.text()) if self.y_len_txt.text() else 0,
+            'y_sep': float(self.y_sep_txt.text()) if self.y_sep_txt.text() else 0,
+            'y_tilt': float(self.y_tilt_txt.text()) if self.y_tilt_txt.text() else 0,
         }
         n_rows = self._rows_box.value()
         n_cols = self._cols_box.value()
