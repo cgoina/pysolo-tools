@@ -790,22 +790,28 @@ def _process_roi(image, monitored_area, roi, roi_index, scalef=None):
     image_roi = image[roi_min_y:roi_max_y, roi_min_x:roi_max_x]
     fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
+    fly_area = None
     fly_coords = None
     for fly_contour in fly_cnts[1]:
         fly_contour_moments = cv2.moments(fly_contour)
         area = fly_contour_moments['m00']
         if area > 0:
-            fly_coords = (fly_contour_moments['m10'] / fly_contour_moments['m00'],
+            coords = (fly_contour_moments['m10'] / fly_contour_moments['m00'],
                           fly_contour_moments['m01'] / fly_contour_moments['m00'])
         else:
             bound_rect = cv2.boundingRect(fly_contour)
             pt1 = (bound_rect[0], bound_rect[1])
             pt2 = (bound_rect[0] + bound_rect[2], bound_rect[1] + bound_rect[3])
-            fly_coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
             area = (pt2[0] - pt1[0]) * (pt2[1] - pt1[1])
+            coords = (pt1[0] + (pt2[0] - pt1[0]) / 2, pt1[1] + (pt2[1] - pt1[1]) / 2)
 
-        if area > 400:
-            fly_coords = None
+        if area < 400:
+            if fly_coords is None:
+                fly_coords = coords
+                fly_area = area
+            elif area < fly_area:
+                fly_coords = coords
+                fly_area = area
 
     rel_fly_coord, distance = monitored_area.add_fly_coords(roi_index, fly_coords)
     return (rel_fly_coord[0] + roi_min_x, rel_fly_coord[1] + roi_min_y), rel_fly_coord, distance
