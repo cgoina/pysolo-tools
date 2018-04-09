@@ -23,7 +23,9 @@ def main():
     parser.add_argument('--end-frame-time', default=-1, type=int, dest='end_frame_pos',
                         help='End frame time in seconds')
     parser.add_argument('--smooth-filter-size', default=3, type=int, dest='gaussian_filter_size',
-                        help='End frame time in seconds')
+                        help='Gaussian filter kernel size')
+    parser.add_argument('--smooth-filter-sigma', default=0, type=int, dest='gaussian_filter_sigma',
+                        help='Gaussian filter sigma')
     parser.add_argument('--nthreads', default=1, type=int, dest='nthreads')
 
     args = parser.parse_args()
@@ -51,7 +53,7 @@ def main():
             process_image_frames(image_source, monitored_areas,
                                  background_image=background_image,
                                  gaussian_filter_size=(args.gaussian_filter_size, args.gaussian_filter_size),
-                                 gaussian_sigma=0,
+                                 gaussian_sigma=args.gaussian_filter_sigma,
                                  mp_pool_size=args.nthreads)
             image_source.close()
         else:
