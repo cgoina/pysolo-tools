@@ -1,2 +1,4 @@
-conda activate pysolo-tools
-python pysolo_app.py
+@echo off
+
+call conda activate pysolo-tools
+pythonw pysolo_app.py %*
