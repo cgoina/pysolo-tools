@@ -762,7 +762,7 @@ def _next_image_frame(image_source, gaussian_filter_size, gaussian_sigma, moving
 def _apply_background_mask(frame_image, background_image):
     background_diff = cv2.subtract(background_image, frame_image)  # subtract the background
     grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
-    _, binary_image = cv2.threshold(grey_image, 50, 255, cv2.THRESH_BINARY)
+    _, binary_image = cv2.threshold(grey_image, 40, 255, cv2.THRESH_BINARY)
     binary_image = cv2.dilate(binary_image, None, iterations=2)
     binary_image = cv2.erode(binary_image, None, iterations=2)
     return binary_image
