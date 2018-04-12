@@ -16,3 +16,12 @@ directories.
 ```
 python pysolo_app.py
 ```
+
+### Running the headless tracker
+```
+python pysolo_tracker.py -c path-to-cfg-file
+```
+
+In headless mode the user has the option to specify the number of threads in the thread pool to use for analyzing the ROIs
+but unfortunately python will not execute more than one thread at a time anyway so what I found was
+that using multiple threads really doesn't help to speed up the analysis.
