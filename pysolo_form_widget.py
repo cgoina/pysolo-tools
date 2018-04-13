@@ -453,7 +453,7 @@ class TrackerWidget(QWidget):
         self._config = config
         self._start_frame_msecs = -1
         self._end_frame_msecs = -1
-        self._refresh_interval = 1
+        self._refresh_interval = 10
         self._init_ui()
         self._init_event_handlers()
 
