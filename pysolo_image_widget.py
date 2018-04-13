@@ -13,7 +13,7 @@ from pysolo_video import MovieFile, MonitoredArea
 
 class ImageWidget(QWidget):
 
-    def __init__(self, communication_channels, image_width=540, image_height=400):
+    def __init__(self, communication_channels, image_width=640, image_height=480):
         super(ImageWidget, self).__init__()
         self._communication_channels = communication_channels
         self._image_width = image_width
@@ -187,7 +187,7 @@ class ImageWidget(QWidget):
         """
         if self._image_frame is not None:
             image_frame = self._image_frame
-            color = (255, 0, 255)
+            color = (0, 255, 255)
             width = 1
             line_type = cv2.LINE_AA
             scalef = self._image_scale if self._image_scale is not None else (1., 1.)
