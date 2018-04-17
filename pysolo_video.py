@@ -126,7 +126,7 @@ class MonitoredArea():
         self._points_to_track.append(n_flies)
         self._beams.append(self.get_midline(roi))
 
-    def roi_to_rect(self, roi, scale=None):
+    def roi_to_rect(self, roi, scale=(1, 1)):
         """
         Converts a ROI (a tuple of four points coordinates) into
         a Rect (a tuple of two points coordinates)
@@ -136,13 +136,12 @@ class MonitoredArea():
         rx = max([x1, x2, x3, x4])
         uy = min([y1, y2, y3, y4])
         ly = max([y1, y2, y3, y4])
-        scalef = (1, 1) if scale is None else scale
         return (
-            (int(lx * scalef[0]), int(uy * scalef[1])),
-            (int(rx * scalef[0]), int(ly * scalef[1]))
+            (int(lx * scale[0]), int(uy * scale[1])),
+            (int(rx * scale[0]), int(ly * scale[1]))
         )
 
-    def roi_to_poly(self, roi, scale=None):
+    def roi_to_poly(self, roi, scale=(1, 1)):
         """
         Converts a ROI (a tuple of four points coordinates) into
         a Rect (a tuple of two points coordinates)
@@ -152,35 +151,33 @@ class MonitoredArea():
         rx = max([x1, x2, x3, x4])
         uy = min([y1, y2, y3, y4])
         ly = max([y1, y2, y3, y4])
-        scalef = (1, 1) if scale is None else scale
 
         return [
-            [int(lx * scalef[0]), int(ly * scalef[1])],
-            [int(lx * scalef[0]), int(uy * scalef[1])],
-            [int(rx * scalef[0]), int(uy * scalef[1])],
-            [int(rx * scalef[0]), int(ly * scalef[1])]
+            [int(lx * scale[0]), int(ly * scale[1])],
+            [int(lx * scale[0]), int(uy * scale[1])],
+            [int(rx * scale[0]), int(uy * scale[1])],
+            [int(rx * scale[0]), int(ly * scale[1])]
         ]
 
-    def get_midline(self, roi, scale=None, conv=None):
+    def get_midline(self, roi, scale=(1, 1), conv=None):
         """
         Return the position of each ROI's midline
         Will automatically determine the orientation of the vial
         """
         (x1, y1), (x2, y2) = self.roi_to_rect(roi)
         horizontal = abs(x2 - x1) > abs(y2 - y1)
-        scalef = (1, 1) if scale is None else scale
         if horizontal:
             xm = x1 + (x2 - x1) / 2
             if conv:
-                return (conv(xm * scalef[0]), conv(y1 * scalef[1])),(conv(xm * scalef[0]), conv(y2 * scalef[1]))
+                return (conv(xm * scale[0]), conv(y1 * scale[1])),(conv(xm * scale[0]), conv(y2 * scale[1]))
             else:
-                return (xm * scalef[0], y1 * scalef[1]), (xm * scalef[0], y2 * scalef[1])
+                return (xm * scale[0], y1 * scale[1]), (xm * scale[0], y2 * scale[1])
         else:
             ym = y1 + (y2 - y1) / 2
             if conv:
-                return (conv(x1 * scalef[0]), conv(ym * scalef[1])), (conv(x2 * scalef[0]), conv(ym * scalef[1]))
+                return (conv(x1 * scale[0]), conv(ym * scale[1])), (conv(x2 * scale[0]), conv(ym * scale[1]))
             else:
-                return (x1 * scalef[0], ym * scalef[1]), (x2 * scalef[0], ym * scalef[1])
+                return (x1 * scale[0], ym * scale[1]), (x2 * scale[0], ym * scale[1])
 
     def save_rois(self, filename):
         with open(filename, 'wb') as cf:
@@ -220,7 +217,7 @@ class MonitoredArea():
         self._aggregated_frames_fly_coord = np.roll(self._aggregated_frames_fly_coord, (-nframes, 0), axis=(1, 0))
         self._aggregated_frames_buffer_index -= nframes
 
-    def update_frame_activity(self, frame_time, scalef=None):
+    def update_frame_activity(self, frame_time):
         self._aggregated_frames_fly_coord[:, self._aggregated_frames_buffer_index] = self._current_frame_fly_coord
         self._aggregated_frames_buffer_index += 1
         self._aggregated_frame_index += 1
@@ -228,7 +225,7 @@ class MonitoredArea():
         if self._aggregated_frame_index >= self._aggregated_frames:
             _logger.info('Aggregate data - frame time: %ds' % frame_time)
             # aggregate the current buffers
-            self.aggregate_activity(frame_time, scalef=scalef)
+            self.aggregate_activity(frame_time)
             # then
             if len(self._tracking_data_buffer) < self._tracking_data_buffer_size:
                 # buffer the aggregated activity if there's room in the buffers
@@ -240,14 +237,14 @@ class MonitoredArea():
             self._aggregated_frame_index = 0
         elif self._aggregated_frames_buffer_index >= self._aggregated_frames_size:
             # the frame buffers reached the limit so aggregate the current buffers
-            self.aggregate_activity(frame_time, scalef=scalef)
+            self.aggregate_activity(frame_time)
 
-    def aggregate_activity(self, frame_time, scalef=None):
+    def aggregate_activity(self, frame_time):
         if self._track_type == 0:
             values, _ = self._calculate_distances()
             activity = DistanceSum(frame_time, values)
         elif self._track_type == 1:
-            values, _ = self._calculate_vbm(scale=scalef)
+            values, _ = self._calculate_vbm()
             activity = VirtualBeamCrossings(frame_time, values)
         elif self._track_type == 2:
             values, count = self._calculate_position()
@@ -329,7 +326,7 @@ class MonitoredArea():
 
         return values, nframes
 
-    def _calculate_vbm(self, scale=None):
+    def _calculate_vbm(self):
         """
         Motion is calculated as virtual beam crossing
         Detects automatically beam orientation (vertical vs horizontal)
@@ -339,7 +336,7 @@ class MonitoredArea():
         values = np.zeros((len(self.ROIS)), dtype=np.int)
         if nframes > 0:
             roi_index = 0
-            for fd, md in zip(self._aggregated_frames_fly_coord, self._relative_beams(scale=scale)):
+            for fd, md in zip(self._aggregated_frames_fly_coord, self._relative_beams()):
                 if self.is_roi_trackable(roi_index):
                     (mx1, my1), (mx2, my2) = md
                     horizontal = (mx1 == mx2)
@@ -471,6 +468,9 @@ class ImageSource():
     def get_size(self):
         return self._size
 
+    def set_size(self, size):
+        self._size = size
+
     def set_resolution(self, width, height):
         self._resolution = (width, height)
 
@@ -498,13 +498,16 @@ class ImageSource():
     def get_current_frame_time_in_seconds(self):
         pass
 
+    def open(self):
+        pass
+
     def close(self):
         pass
 
 
 class MovieFile(ImageSource):
 
-    def __init__(self, movie_file_path, start_msecs=None, end_msecs=None, resolution=None):
+    def __init__(self, movie_file_path, open_source=True, start_msecs=None, end_msecs=None, resolution=None):
         """
         :param movie_file_path: path to the movie file
         :param step: distance between frames
@@ -512,44 +515,24 @@ class MovieFile(ImageSource):
         :param end: last frame. If None ends at last
         """
 
-        # open the movie file
-        self._capture = cv2.VideoCapture(movie_file_path)
-        height = int(self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        width = int(self._capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-
-        super(MovieFile, self).__init__(resolution=resolution, size=(width, height))
-
-        nframes = int(self._capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        self._fps = int(self._capture.get(cv2.CAP_PROP_FPS))
+        super(MovieFile, self).__init__(resolution=resolution)
 
         self._movie_file_path = movie_file_path
-        # set the start frame
-        if start_msecs is None or start_msecs < 0:
-            self._start = 0
-        else:
-            start_frame = int(start_msecs * self._fps / 1000)
-            if start_frame < nframes:
-                self._start = start_frame
-            else:
-                self._start = nframes
-        # set the end frame
-        if end_msecs is None or end_msecs < 0:
-            self._end = nframes
-        else:
-            end_frame = int(end_msecs * self._fps / 1000)
-            if end_frame < nframes:
-                self._end = end_frame
-            else:
-                self._end = nframes
-        # set the frame increment
+        self._fps = None
+        self._start_msecs = start_msecs
+        self._end_msecs = end_msecs
+        self._start = None
+        self._end = None
         self._step = 1
-        self._total_frames = nframes
-        self._current_frame = self._start
-        if self._current_frame != 0:
-            self._capture.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
+        self._total_frames = None
+        self._current_frame = None
+
+        # open the movie file
+        if open_source:
+            self.open()
 
     def is_opened(self):
-        return self._capture.isOpened()
+        return self._capture is not None and self._capture.isOpened()
 
     def get_fps(self):
         return self._fps
@@ -561,7 +544,7 @@ class MovieFile(ImageSource):
         return self._end
 
     def get_image(self):
-        if self._current_frame < 0 or self._current_frame >= self._end:
+        if not self.is_opened() or self._current_frame < 0 or self._current_frame >= self._end:
             return False, -1, None
         else:
             current_frame = self._current_frame
@@ -596,16 +579,21 @@ class MovieFile(ImageSource):
             return frame_index
 
     def get_start_time_in_seconds(self):
-        return self._start / self.get_fps()
+        if self.is_opened():
+            return self._start / self.get_fps()
+        else:
+            return None
 
     def set_start_time_in_seconds(self, start_time):
-        start_frame = start_time * self.get_fps()
-        if start_frame < 0:
-            self._start = 0
-        elif start_frame > self._total_frames:
-            self._start = self._total_frames
-        else:
-            self._start = start_frame
+        self._start_msecs = start_time * 1000
+        if self.is_opened():
+            start_frame = start_time * self.get_fps()
+            if start_frame < 0:
+                self._start = 0
+            elif start_frame > self._total_frames:
+                self._start = self._total_frames
+            else:
+                self._start = start_frame
 
     def get_end_time_in_seconds(self):
         fps = self.get_fps()
@@ -615,20 +603,61 @@ class MovieFile(ImageSource):
             return 0
 
     def set_end_time_in_seconds(self, end_time):
-        end_frame = end_time * self.get_fps()
-        if end_frame < 0:
-            self._end = self._total_frames
-        elif end_frame > self._total_frames:
-            self._end = self._total_frames
-        else:
-            self._end = end_frame
+        self._end_msecs = end_time * 1000
+        if self.is_opened():
+            end_frame = end_time * self.get_fps()
+            if end_frame < 0:
+                self._end = self._total_frames
+            elif end_frame > self._total_frames:
+                self._end = self._total_frames
+            else:
+                self._end = end_frame
 
     def get_current_frame_time_in_seconds(self):
-        frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
-        return frame_time_in_millis / 1000  # return the time in seconds
+        if self.is_opened():
+            frame_time_in_millis = self._capture.get(cv2.CAP_PROP_POS_MSEC)
+            return frame_time_in_millis / 1000  # return the time in seconds
+        else:
+            return None
+
+    def open(self):
+        self._capture = cv2.VideoCapture(self._movie_file_path)
+        height = int(self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        width = int(self._capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+
+        self.set_size((width, height))
+
+        nframes = int(self._capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        self._fps = int(self._capture.get(cv2.CAP_PROP_FPS))
+
+        # set the start frame
+        if self._start_msecs is None or self._start_msecs < 0:
+            self._start = 0
+        else:
+            start_frame = int(self._start_msecs * self._fps / 1000)
+            if start_frame < nframes:
+                self._start = start_frame
+            else:
+                self._start = nframes
+        # set the end frame
+        if self._end_msecs is None or self._end_msecs < 0:
+            self._end = nframes
+        else:
+            end_frame = int(self._end_msecs * self._fps / 1000)
+            if end_frame < nframes:
+                self._end = end_frame
+            else:
+                self._end = nframes
+        # set the frame increment
+        self._total_frames = nframes
+        self._current_frame = self._start
+        if self._current_frame != 0:
+            self._capture.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
 
     def close(self):
-        self._capture.release()
+        if self._capture is not None:
+            self._capture.release()
+            self._capture = None
 
 
 def estimate_background(image_source,
@@ -708,10 +737,10 @@ def process_image_frames(image_source, monitored_areas,
                                    _next_monitored_area_roi(monitored_areas))
 
         if frame_callback:
-            frame_callback(frame_index, [r[0] for r in results])
+            frame_callback(frame_index, [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results])
 
         def update_monitored_area_activity(monitored_area):
-            monitored_area.update_frame_activity(frame_time_pos, scalef=image_scalef)
+            monitored_area.update_frame_activity(frame_time_pos)
 
         list(map(update_monitored_area_activity, monitored_areas))
 
@@ -720,7 +749,7 @@ def process_image_frames(image_source, monitored_areas,
     # write the remaining activity that is still in memory
     for monitored_area in monitored_areas:
         # aggregate whatever is left in the buffers
-        monitored_area.aggregate_activity(frame_time_pos, scalef=image_scalef)
+        monitored_area.aggregate_activity(frame_time_pos)
         # then write them out to disk
         monitored_area.write_activity()
 
@@ -740,7 +769,6 @@ def _next_image_frame(image_source, gaussian_filter_size, gaussian_sigma, moving
         if not has_more_frames:
             break
         _logger.debug('Process frame %d(frame time: %rs)' % (frame_index, frame_time_pos))
-        nframes += 1
 
         # smooth the image to get rid of false positives
         frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
@@ -756,6 +784,7 @@ def _next_image_frame(image_source, gaussian_filter_size, gaussian_sigma, moving
 
         processed_image = image_frame_processor(frame_image, background)
 
+        nframes += 1
         yield (processed_image, frame_index, frame_time_pos)
 
 
@@ -783,7 +812,7 @@ def _next_monitored_area_roi(monitored_areas):
                 yield (monitored_area, roi, roi_index)
 
 
-def _process_roi(image, monitored_area, roi, roi_index, scalef=None):
+def _process_roi(image, monitored_area, roi, roi_index, scalef=(1, 1)):
     (roi_min_x, roi_min_y), (roi_max_x, roi_max_y) = monitored_area.roi_to_rect(roi, scalef)
 
     image_roi = image[roi_min_y:roi_max_y, roi_min_x:roi_max_x]
@@ -812,5 +841,9 @@ def _process_roi(image, monitored_area, roi, roi_index, scalef=None):
                 fly_coords = coords
                 fly_area = area
 
-    rel_fly_coord, distance = monitored_area.add_fly_coords(roi_index, fly_coords)
-    return (rel_fly_coord[0] + roi_min_x, rel_fly_coord[1] + roi_min_y), rel_fly_coord, distance
+    rel_fly_coord, distance = monitored_area.add_fly_coords(roi_index,
+                                                            (fly_coords[0] / scalef[0],
+                                                             fly_coords[1] / scalef[1]) if fly_coords is not None
+                                                            else None)
+    return (rel_fly_coord[0] + roi_min_x / scalef[0],
+            rel_fly_coord[1] + roi_min_y / scalef[1]), rel_fly_coord, distance
