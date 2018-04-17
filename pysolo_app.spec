@@ -5,7 +5,7 @@ block_cipher = None
 
 a = Analysis(['pysolo_app.py'],
              pathex=['C:\\Users\\goinac\\Work\\pysolo\\pysolo-tools'],
-             binaries=[('C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Library\\plugins\\platforms\\qwindows.dll')],
+             binaries=[('C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Library\\plugins\\platforms\\qwindows.dll', 'qwindows.dll')],
              datas=[],
              hiddenimports=[],
              hookspath=[],

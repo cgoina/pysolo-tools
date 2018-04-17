@@ -9,5 +9,6 @@
 local
 logs
 build
+dist
 venv
 __pycache__
