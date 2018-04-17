@@ -1,20 +1,27 @@
 # -*- mode: python -*-
 
+from PyInstaller.utils.hooks import collect_submodules
+
+
 block_cipher = None
 
+datas = []
+hiddenimports = []
+hookspath = [
+    'C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Lib\\site-packages\\PyInstaller\\hooks'
+]
 
 a = Analysis(['pysolo_app.py'],
              pathex=[
                  'C:\\Users\\goinac\\Work\\pysolo\\pysolo-tools',
-                 'C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Lib\\encodings'],
-             binaries=[
-                 ('C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Library\\plugins\\platforms\\qwindows.dll', 'qwindows.dll'),
-                 ('C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Library\\lib\\opencv_core331.lib', 'opencv_core331.lib'),
-                 ('C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Library\\bin\\opencv_ffmpeg331_64.dll', 'opencv_ffmpeg331_64.dll')
+                 'C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Lib',
+                 'C:\\ProgramData\\Miniconda3\\envs\\pysolo-tools\\Lib\\encodings'
              ],
-             datas=[],
-             hiddenimports=[],
-             hookspath=[],
+             binaries=[
+             ],
+             datas=datas,
+             hiddenimports=hiddenimports,
+             hookspath=hookspath,
              runtime_hooks=[],
              excludes=[],
              win_no_prefer_redirects=False,
