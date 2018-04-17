@@ -44,6 +44,7 @@ class MonitoredArea():
         self._track_type = track_type
         self._sleep_deprivation_flag = sleep_deprivation_flag
         self.ROIS = []  # regions of interest
+        self.rois_background = []
         self._beams = []  # beams: absolute coordinates
         self._points_to_track = []
         self._tracking_data_buffer_size = tracking_data_buffer_size if tracking_data_buffer_size > 0 else 1
@@ -197,6 +198,7 @@ class MonitoredArea():
         self._reset_data_buffers()
         for roi in self.ROIS:
             self._beams.append(self.get_midline(roi))
+            self.rois_background.append(None)
 
     def _reset_data_buffers(self):
         self._reset_current_frame_buffer()
@@ -663,22 +665,19 @@ class MovieFile(ImageSource):
 def estimate_background(image_source,
                         gaussian_filter_size=(3, 3),
                         gaussian_sigma=1,
-                        moving_alpha=0.5,
                         cancel_callback=None):
     background = None
     average = None
     nframes = 0
-    for frame_image, frame_index, frame_time_pos in _next_image_frame(image_source,
-                                                                      gaussian_filter_size,
-                                                                      gaussian_sigma,
-                                                                      moving_alpha,
-                                                                      _no_processing,
-                                                                      cancel_callback=cancel_callback):
+    for frame_image, frame_index, frame_time_pos in _next_image_frame(image_source, cancel_callback=cancel_callback):
         nframes += 1
+        # smooth the image to get rid of false positives
+        filtered_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
+
         if average is None:
-            average = np.float32(frame_image)
+            average = np.float32(filtered_image)
         else:
-            average = average + (frame_image - average) / nframes
+            average = average + (filtered_image - average) / nframes
         background = cv2.convertScaleAbs(average)
 
     return background
@@ -710,7 +709,6 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
 
 
 def process_image_frames(image_source, monitored_areas,
-                         background_image=None,
                          gaussian_filter_size=(3, 3),
                          gaussian_sigma=1,
                          moving_alpha=0.2,
@@ -720,20 +718,26 @@ def process_image_frames(image_source, monitored_areas,
     image_scalef = image_source.get_scale()
     pool = ThreadPool(mp_pool_size)
 
-    for binary_image, frame_index, frame_time_pos in _next_image_frame(image_source,
-                                                                       gaussian_filter_size,
-                                                                       gaussian_sigma,
-                                                                       moving_alpha,
-                                                                       _apply_background_mask,
-                                                                       background_image=background_image,
-                                                                       cancel_callback=cancel_callback):
+    for frame_image, frame_index, frame_time_pos in _next_image_frame(image_source, cancel_callback=cancel_callback):
+        _logger.debug('Process frame %d(frame time: %rs)' % (frame_index, frame_time_pos))
+
         # there is an option to use the thread pool but it appears that it really doesn't help much
         # on the contrary - using the thread pool makes the processing slower.
         if mp_pool_size <= 1:
-            results = list(itertools.starmap(partial(_process_roi, binary_image.copy(), scalef=image_scalef),
+            results = list(itertools.starmap(partial(_process_roi,
+                                                     frame_image,
+                                                     gaussian_filter_size=gaussian_filter_size,
+                                                     gaussian_sigma=gaussian_sigma,
+                                                     moving_alpha=moving_alpha,
+                                                     scalef=image_scalef),
                                              _next_monitored_area_roi(monitored_areas)))
         else:
-            results = pool.starmap(partial(_process_roi, binary_image.copy(), scalef=image_scalef),
+            results = pool.starmap(partial(_process_roi,
+                                           frame_image,
+                                           gaussian_filter_size=gaussian_filter_size,
+                                           gaussian_sigma=gaussian_sigma,
+                                           moving_alpha=moving_alpha,
+                                           scalef=image_scalef),
                                    _next_monitored_area_roi(monitored_areas))
 
         if frame_callback:
@@ -756,49 +760,14 @@ def process_image_frames(image_source, monitored_areas,
     return True
 
 
-def _next_image_frame(image_source, gaussian_filter_size, gaussian_sigma, moving_alpha,
-                      image_frame_processor,
-                      background_image=None,
-                      cancel_callback=None):
+def _next_image_frame(image_source, cancel_callback=None):
     not_cancelled = cancel_callback or _always_true
-    moving_average = None
-    nframes = 0
     while not_cancelled():
         frame_time_pos = image_source.get_current_frame_time_in_seconds()
         has_more_frames, frame_index, frame_image = image_source.get_image()
         if not has_more_frames:
             break
-        _logger.debug('Process frame %d(frame time: %rs)' % (frame_index, frame_time_pos))
-
-        # smooth the image to get rid of false positives
-        frame_image = cv2.GaussianBlur(frame_image, gaussian_filter_size, gaussian_sigma)
-
-        if background_image is None:
-            if moving_average is None:
-                moving_average = np.float32(frame_image)
-            else:
-                moving_average = cv2.accumulateWeighted(frame_image, moving_average, alpha=moving_alpha)
-            background = cv2.convertScaleAbs(moving_average)
-        else:
-            background = background_image
-
-        processed_image = image_frame_processor(frame_image, background)
-
-        nframes += 1
-        yield (processed_image, frame_index, frame_time_pos)
-
-
-def _apply_background_mask(frame_image, background_image):
-    background_diff = cv2.subtract(background_image, frame_image)  # subtract the background
-    grey_image = cv2.cvtColor(background_diff, cv2.COLOR_BGR2GRAY)
-    _, binary_image = cv2.threshold(grey_image, 40, 255, cv2.THRESH_BINARY)
-    binary_image = cv2.dilate(binary_image, None, iterations=2)
-    binary_image = cv2.erode(binary_image, None, iterations=2)
-    return binary_image
-
-
-def _no_processing(frame_image, background_image):
-    return frame_image
+        yield (frame_image, frame_index, frame_time_pos)
 
 
 def _always_true():
@@ -812,11 +781,33 @@ def _next_monitored_area_roi(monitored_areas):
                 yield (monitored_area, roi, roi_index)
 
 
-def _process_roi(image, monitored_area, roi, roi_index, scalef=(1, 1)):
+def _process_roi(image, monitored_area, roi, roi_index,
+                 gaussian_filter_size=(3, 3),
+                 gaussian_sigma=1,
+                 moving_alpha=0.2,
+                 scalef=(1, 1)):
     (roi_min_x, roi_min_y), (roi_max_x, roi_max_y) = monitored_area.roi_to_rect(roi, scalef)
 
     image_roi = image[roi_min_y:roi_max_y, roi_min_x:roi_max_x]
-    fly_cnts = cv2.findContours(image_roi.copy(), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+    filtered_roi =  cv2.GaussianBlur(image_roi, gaussian_filter_size, gaussian_sigma)
+
+    roi_average = monitored_area.rois_background[roi_index]
+    if roi_average is None:
+        roi_average = np.float32(filtered_roi)
+    else:
+        roi_average = cv2.accumulateWeighted(filtered_roi, roi_average, alpha=moving_alpha)
+
+    monitored_area.rois_background[roi_index] = roi_average
+    roi_background = cv2.convertScaleAbs(roi_average)
+
+    roi_background_diff = cv2.subtract(roi_background, filtered_roi)  # subtract the background
+    roi_gray_diff = cv2.cvtColor(roi_background_diff, cv2.COLOR_BGR2GRAY)
+    _, roi_binary = cv2.threshold(roi_gray_diff, 40, 255, cv2.THRESH_BINARY)
+    roi_binary = cv2.dilate(roi_binary, None, iterations=2)
+    roi_binary = cv2.erode(roi_binary, None, iterations=2)
+
+    fly_cnts = cv2.findContours(roi_binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
     fly_area = None
     fly_coords = None

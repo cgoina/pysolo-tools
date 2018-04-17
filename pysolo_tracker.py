@@ -51,7 +51,6 @@ def main():
             if config.source_background_image and os.path.exists(config.source_background_image):
                 background_image = cv2.imread(config.source_background_image)
             process_image_frames(image_source, monitored_areas,
-                                 background_image=background_image,
                                  gaussian_filter_size=(args.gaussian_filter_size, args.gaussian_filter_size),
                                  gaussian_sigma=args.gaussian_filter_sigma,
                                  mp_pool_size=args.nthreads)

@@ -2,12 +2,11 @@
 
 import cv2
 import logging.config
-import os
 import sys
 from argparse import ArgumentParser
 
 from pysolo_config import load_config
-from pysolo_video import (process_image_frames, prepare_monitored_areas, estimate_background)
+from pysolo_video import (prepare_monitored_areas, estimate_background)
 
 
 def main():
