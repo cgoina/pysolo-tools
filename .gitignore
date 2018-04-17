@@ -8,5 +8,6 @@
 *~
 local
 logs
+build
 venv
 __pycache__
