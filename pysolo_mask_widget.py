@@ -181,17 +181,24 @@ class CreateMaskDlgWidget(QDialog):
 
     def _draw_mask(self):
         mask_params = {
-            'x1': float(self.x1_txt.text()) if self.x1_txt.text() else 0,
-            'x_span': float(self.x_span_txt.text()) if self.x_span_txt.text() else 0,
-            'x_gap': float(self.x_gap_txt.text()) if self.x_gap_txt.text() else 0,
-            'x_tilt': float(self.x_tilt_txt.text()) if self.x_tilt_txt.text() else 0,
+            'x1': _text_to_float(self.x1_txt.text()),
+            'x_span': _text_to_float(self.x_span_txt.text()),
+            'x_gap': _text_to_float(self.x_gap_txt.text()),
+            'x_tilt': _text_to_float(self.x_tilt_txt.text()),
 
-            'y1': float(self.y1_txt.text()) if self.y1_txt.text() else 0,
-            'y_len': float(self.y_len_txt.text()) if self.y_len_txt.text() else 0,
-            'y_sep': float(self.y_sep_txt.text()) if self.y_sep_txt.text() else 0,
-            'y_tilt': float(self.y_tilt_txt.text()) if self.y_tilt_txt.text() else 0,
+            'y1': _text_to_float(self.y1_txt.text()),
+            'y_len': _text_to_float(self.y_len_txt.text()),
+            'y_sep': _text_to_float(self.y_sep_txt.text()),
+            'y_tilt': _text_to_float(self.y_tilt_txt.text()),
         }
         n_rows = self._rows_box.value()
         n_cols = self._cols_box.value()
         arena = create_mask(n_rows, n_cols, mask_params)
         self._communication_channels.monitored_area_rois_signal.emit(arena)
+
+
+def _text_to_float(s):
+    try:
+        return float(s)
+    except ValueError:
+        return 0

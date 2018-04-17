@@ -453,7 +453,7 @@ class TrackerWidget(QWidget):
         self._config = config
         self._start_frame_msecs = -1
         self._end_frame_msecs = -1
-        self._refresh_interval = 1
+        self._refresh_interval = 10
         self._init_ui()
         self._init_event_handlers()
 
@@ -600,11 +600,7 @@ class TrackerWidget(QWidget):
                                                                     end_frame_msecs=self._end_frame_msecs)
 
             if image_source.is_opened():
-                background_image = None
-                if self._config.source_background_image and os.path.exists(self._config.source_background_image):
-                    background_image = cv2.imread(self._config.source_background_image)
                 process_image_frames(image_source, monitored_areas,
-                                     background_image=background_image,
                                      cancel_callback=tracker_status.is_running,
                                      frame_callback=partial(update_frame_image, monitored_areas=monitored_areas),
                                      gaussian_filter_size=(3, 3),

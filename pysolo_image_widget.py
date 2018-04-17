@@ -13,7 +13,7 @@ from pysolo_video import MovieFile, MonitoredArea
 
 class ImageWidget(QWidget):
 
-    def __init__(self, communication_channels, image_width=540, image_height=400):
+    def __init__(self, communication_channels, image_width=640, image_height=480):
         super(ImageWidget, self).__init__()
         self._communication_channels = communication_channels
         self._image_width = image_width
@@ -150,24 +150,22 @@ class ImageWidget(QWidget):
     def _display_rois(self, monitored_area):
         if self._movie_file is None:
             return  # do nothing
-        roi_image = np.zeros(self._image_frame.shape, np.uint8)
-        color = [0, 255, 255]
+        roi_image = self._image_frame.copy()
+        color = [255, 0, 0]
         for roi_index, roi in enumerate(monitored_area.ROIS):
             if monitored_area.is_roi_trackable(roi_index):
                 roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
                 cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
                 mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
                 cv2.line(roi_image, mid1, mid2, color=color)
-
-        overlay = cv2.bitwise_xor(self._image_frame, roi_image)
-        self._update_image_pixels_async(overlay)
+        self._update_image_pixels_async(roi_image)
 
     @pyqtSlot(list)
     def _display_all_monitored_areas_rois(self, monitored_areas):
         if self._movie_file is None:
             return  # do nothing
-        roi_image = np.zeros(self._image_frame.shape, np.uint8)
-        color = [0, 255, 255]
+        roi_image = self._image_frame.copy()
+        color = [255, 0, 0]
         for monitored_area in monitored_areas:
             for roi_index, roi in enumerate(monitored_area.ROIS):
                 if monitored_area.is_roi_trackable(roi_index):
@@ -175,8 +173,7 @@ class ImageWidget(QWidget):
                     cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
                     mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
                     cv2.line(roi_image, mid1, mid2, color=color)
-        overlay = cv2.bitwise_xor(self._image_frame, roi_image)
-        self._update_image_pixels_async(overlay)
+        self._update_image_pixels_async(roi_image)
 
     @pyqtSlot(list)
     def _draw_fly_pos(self, fly_coords):
@@ -187,7 +184,7 @@ class ImageWidget(QWidget):
         """
         if self._image_frame is not None:
             image_frame = self._image_frame
-            color = (255, 0, 255)
+            color = (255, 0, 0)
             width = 1
             line_type = cv2.LINE_AA
             scalef = self._image_scale if self._image_scale is not None else (1., 1.)
