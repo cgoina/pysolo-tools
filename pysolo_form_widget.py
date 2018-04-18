@@ -245,6 +245,15 @@ class CommonOptionsFormWidget(QWidget):
         self._update_image_height(self._config.get_image_height())
         # update the number of monitored areas
         self._n_monitored_areas_box.setValue(self._config.monitored_areas_count)
+        monitored_area_index = 0
+        monitored_area_options = self._config.get_monitored_area(0)
+
+        if monitored_area_options is None:
+            monitored_area_index = -1
+            monitored_area_options = MonitoredAreaOptions()
+        self._communication_channels.selected_area_signal.emit(monitored_area_index)
+        self._communication_channels.monitored_area_options_signal.emit(monitored_area_options)
+        self._update_number_of_areas(self._config.monitored_areas_count)
 
 
 class MonitoredAreaFormWidget(QWidget):
