@@ -467,6 +467,7 @@ class TrackerWidget(QWidget):
         self._start_frame_msecs = -1
         self._end_frame_msecs = -1
         self._refresh_interval = 10
+        self._gaussian_kernel_size = 3
         self._init_ui()
         self._init_event_handlers()
 
@@ -513,6 +514,15 @@ class TrackerWidget(QWidget):
 
         current_layout_row += 2
 
+        self._gaussian_kernel_size_box = QSpinBox()
+        self._gaussian_kernel_size_box.setRange(0, 99)
+        self._gaussian_kernel_size_box.setValue(self._gaussian_kernel_size)
+
+        group_layout.addWidget(QLabel('Smoothing filter size (must be odd or 0)'), current_layout_row, 0)
+        group_layout.addWidget(self._gaussian_kernel_size_box, current_layout_row + 1, 0)
+
+        current_layout_row += 2
+
         self._start_btn = QPushButton('Start')
         self._cancel_btn = QPushButton('Cancel')
 
@@ -531,6 +541,7 @@ class TrackerWidget(QWidget):
         self._start_seconds_txt.textChanged.connect(self._update_start_time_in_secs)
         self._end_seconds_txt.textChanged.connect(self._update_end_time_in_secs)
         self._refresh_interval_box.valueChanged.connect(self._update_refresh_rate)
+        self._gaussian_kernel_size_box.valueChanged.connect(self._update_gaussian_kernel_size)
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
         # update video file
@@ -559,6 +570,9 @@ class TrackerWidget(QWidget):
 
     def _update_refresh_rate(self, value):
         self._refresh_interval = value
+
+    def _update_gaussian_kernel_size(self, value):
+        self._gaussian_kernel_size = value
 
     @pyqtSlot(ConfigOptions)
     def _update_config_options(self, new_config):
@@ -614,7 +628,7 @@ class TrackerWidget(QWidget):
                 process_image_frames(image_source, monitored_areas,
                                      cancel_callback=tracker_status.is_running,
                                      frame_callback=partial(update_frame_image, monitored_areas=monitored_areas),
-                                     gaussian_filter_size=(3, 3),
+                                     gaussian_filter_size=(self._gaussian_kernel_size, self._gaussian_kernel_size),
                                      gaussian_sigma=0,
                                      mp_pool_size=1)
 
@@ -626,6 +640,9 @@ class TrackerWidget(QWidget):
 
         # before starting the tracker check if the config is valid
         config_errors = self._config.validate()
+        if self._gaussian_kernel_size != 0 and self._gaussian_kernel_size % 2 == 0:
+            config_errors.append('Gaussian kernel must be odd or 0 if not needed')
+
         if len(config_errors) == 0:
             tracker_status = TrackerStatus(self._communication_channels, True)
             t = threading.Thread(target=process_frames, args=(tracker_status,))

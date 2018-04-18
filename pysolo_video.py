@@ -814,7 +814,10 @@ def _process_roi(image, monitored_area, roi, roi_index,
 
     image_roi = image[roi_min_y:roi_max_y, roi_min_x:roi_max_x]
 
-    filtered_roi =  cv2.GaussianBlur(image_roi, gaussian_filter_size, gaussian_sigma)
+    if gaussian_filter_size[0] == 0:
+        filtered_roi =  image_roi
+    else:
+        filtered_roi =  cv2.GaussianBlur(image_roi, gaussian_filter_size, gaussian_sigma)
 
     roi_average = monitored_area.rois_background[roi_index]
     if roi_average is None:
