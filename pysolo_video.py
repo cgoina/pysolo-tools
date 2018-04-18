@@ -100,17 +100,13 @@ class MonitoredArea():
         coords      (x,y)    the coordinates to add
         Called for every fly moving in every frame
         """
-        fly_size = 15  # About 15 pixels at 640x480
-        max_movement = fly_size * 100
-        min_movement = fly_size / 3
-
         previous_position = tuple(self._current_frame_fly_coord[roi_index])
         is_first_movement = (previous_position == self._first_position)
         # coords is None if no blob was detected
         fly_coords = previous_position if coords is None else coords
 
         distance = self._distance(previous_position, fly_coords)
-        if (distance > max_movement and not is_first_movement) or (distance < min_movement):
+        if distance == 0:
             # leave the position unchanged if the distance from the previous position is either too small or too big
             fly_coords = previous_position
 
@@ -246,6 +242,16 @@ class MonitoredArea():
         elif self._aggregated_frames_buffer_index >= self._aggregated_frames_size:
             # the frame buffers reached the limit so aggregate the current buffers
             self.aggregate_activity(frame_time)
+
+    def get_track_type_desc(self):
+        if self._track_type == 0:
+            return 'distance'
+        elif self._track_type == 1:
+            return 'crossings'
+        elif self._track_type == 2:
+            return 'position'
+        else:
+            raise ValueError('Invalid track type option: %d' % self._track_type)
 
     def aggregate_activity(self, frame_time):
         if self._track_type == 0:
@@ -696,8 +702,8 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
                              resolution=config.image_size)
 
     def create_monitored_area(configured_area_index, configured_area):
-        start = '0' if start_frame_msecs is None else str(start_frame_msecs)
-        end = 'end' if end_frame_msecs is None else str(end_frame_msecs)
+        start = '0' if start_frame_msecs is None or start_frame_msecs < 0 else str(start_frame_msecs / 1000)
+        end = 'end' if end_frame_msecs is None or end_frame_msecs < 0 else str(end_frame_msecs / 1000)
         ma = MonitoredArea(track_type=configured_area.track_type,
                            sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
                            fps=image_source.get_fps(),
@@ -708,7 +714,10 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
         ma.set_roi_filter(configured_area.tracked_rois_filter)
         ma.load_rois(configured_area.maskfile)
         ma.set_output(
-            os.path.join(config.data_folder, 'Monitor%02d.txt%s' % (configured_area_index + 1, ma.get_results_suffix()))
+            os.path.join(config.data_folder, 'Monitor%02d-%s-%s.txt' % (
+                configured_area_index + 1,
+                ma.get_track_type_desc(),
+                ma.get_results_suffix()))
         )
         return ma
 

@@ -197,16 +197,20 @@ class ImageWidget(QWidget):
             color = (255, 0, 0)
             width = 1
             line_type = cv2.LINE_AA
-            scalef = self._image_scale if self._image_scale is not None else (1., 1.)
+
+            scalef = self._image_height / image_frame.shape[1]
+            image_ratio = image_frame.shape[0] / image_frame.shape[1]
+            delta_x = 3 / scalef / self._ratio
+            delta_y = 3 / scalef / self._ratio * image_ratio
 
             for fly_coord in fly_coords:
                 # draw the position of the fly
                 x = fly_coord[0]
                 y = fly_coord[1]
-                a = (int(x), int(y - 3 * scalef[1]))
-                b = (int(x), int(y + 3 * scalef[1]))
-                c = (int(x - 3 * scalef[0]), int(y))
-                d = (int(x + 3 * scalef[0]), int(y))
+                a = (int(x), int(y - delta_y))
+                b = (int(x), int(y + delta_y))
+                c = (int(x - delta_x), int(y))
+                d = (int(x + delta_x), int(y))
                 cv2.line(image_frame, a, b, color, width, line_type, 0)
                 cv2.line(image_frame, c, d, color, width, line_type, 0)
 

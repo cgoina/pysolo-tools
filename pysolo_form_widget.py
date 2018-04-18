@@ -127,16 +127,9 @@ class CommonOptionsFormWidget(QWidget):
                                                   filter='Video files (*.avi *.mpeg *.mp4);;All files (*)',
                                                   options=options)
         if filename:
-            self._update_source_filename(filename)
-
-    def _update_source_filename(self, filename):
-        movie_file = None
-        if filename:
-            movie_file = MovieFile(filename)
-            self._source_filename_txt.setText(filename)
-            if not movie_file.is_opened():
-                QMessageBox.critical(self, 'Movie file error', 'Error opening %s' % filename)
-            else:
+            movie_file = self._update_source_filename(filename)
+            if movie_file:
+                # update acquisition time from the file name which should contain the start of the acquisition
                 acq_time_group = re.search('SR(\d{8}T\d{6})_movie.*', filename)
                 if acq_time_group is not None:
                     self._update_acq_time(QDateTime.fromString(acq_time_group.group(1), 'yyyyMMddTHHmmss'))
@@ -144,18 +137,30 @@ class CommonOptionsFormWidget(QWidget):
                     movie_file_path = Path(filename)
                     movie_file_ts_millis = movie_file_path.stat().st_mtime * 1000
                     self._update_acq_time(QDateTime.fromMSecsSinceEpoch(int(movie_file_ts_millis)))
+                # update image size
                 image_size = movie_file.get_size()
                 self._update_image_width(image_size[0])
                 self._update_image_height(image_size[1])
+
+    def _update_source_filename(self, filename):
+        movie_file = None
+
+        if filename:
+            movie_file = MovieFile(filename)
+            self._source_filename_txt.setText(filename)
+            if not movie_file.is_opened():
+                QMessageBox.critical(self, 'Movie file error', 'Error opening %s' % filename)
 
         if movie_file is not None and movie_file.is_opened():
             self._config.source = filename
             movie_file.set_resolution(self._config.get_image_width(), self._config.get_image_height())
             self._communication_channels.video_loaded_signal.emit(movie_file)
+            return movie_file
         else:
             self._config.source = None
             self._source_filename_txt.setText('')
             self._communication_channels.clear_video_signal.emit()
+            return None
 
     def _update_acq_time(self, acq_time):
         self._config.set_acq_time_from_str(acq_time.toString('yyyy-MM-dd HH:mm:ss'))
@@ -621,6 +626,7 @@ class TrackerWidget(QWidget):
             t.setDaemon(True)
             t.start()
         else:
+            self._stop_tracker()
             QMessageBox.critical(self, 'Configuration errors', '\n'.join(config_errors))
 
     def _stop_tracker(self):
