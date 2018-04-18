@@ -244,10 +244,13 @@ class CommonOptionsFormWidget(QWidget):
         self._update_image_width(self._config.get_image_width())
         self._update_image_height(self._config.get_image_height())
         # update the number of monitored areas
+        # set both the value in the controller and call the event handler in case it's not fired
         self._n_monitored_areas_box.setValue(self._config.monitored_areas_count)
         self._update_number_of_areas(self._config.monitored_areas_count)
         # update selected area
+        # set both the value in the controller and call the event handler in case it's not fired
         self._selected_area_choice.setCurrentIndex(0)
+        self._update_selected_area(0)
 
 
 class MonitoredAreaFormWidget(QWidget):
