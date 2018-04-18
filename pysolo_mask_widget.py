@@ -5,7 +5,8 @@ from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import QPushButton, QLabel, QComboBox, QDialog, QGridLayout, QSpinBox, QLineEdit, QFileDialog, \
     QCheckBox
 
-from pysolo_maskmaker import create_mask, get_mask_params
+from pysolo_maskmaker import create_mask, get_mask_params, get_mask_params_from_rois
+from pysolo_video import MonitoredArea
 
 
 class CreateMaskDlgWidget(QDialog):
@@ -27,8 +28,8 @@ class CreateMaskDlgWidget(QDialog):
         self._area_location_choice.addItem('Area 4', 'lower_right')
 
         current_widget_row = 0
-        layout.addWidget(area_location_lbl, current_widget_row, 0)
-        layout.addWidget(self._area_location_choice, current_widget_row, 1)
+        layout.addWidget(area_location_lbl, current_widget_row, 0, 1, 3)
+        layout.addWidget(self._area_location_choice, current_widget_row, 3, 1, 3)
         current_widget_row += 1
 
         rows_lbl = QLabel('Rows')
@@ -36,12 +37,12 @@ class CreateMaskDlgWidget(QDialog):
         cols_lbl = QLabel('Cols')
         self._cols_box = QSpinBox()
 
-        layout.addWidget(rows_lbl, current_widget_row, 0)
-        layout.addWidget(cols_lbl, current_widget_row, 1)
+        layout.addWidget(rows_lbl, current_widget_row, 0, 1, 3)
+        layout.addWidget(cols_lbl, current_widget_row, 3, 1, 3)
         current_widget_row += 1
 
-        layout.addWidget(self._rows_box, current_widget_row, 0)
-        layout.addWidget(self._cols_box, current_widget_row, 1)
+        layout.addWidget(self._rows_box, current_widget_row, 0, 1, 3)
+        layout.addWidget(self._cols_box, current_widget_row, 3, 1, 3)
         current_widget_row += 1
 
         reg_ex = QRegExp('(-)?[0-9]+.?[0-9]{,2}')
@@ -73,47 +74,49 @@ class CreateMaskDlgWidget(QDialog):
         self.y_tilt_txt = QLineEdit()
         self.y_tilt_txt.setValidator(mask_param_validator)
 
-        layout.addWidget(x1_lbl, current_widget_row, 0)
-        layout.addWidget(y1_lbl, current_widget_row, 1)
+        layout.addWidget(x1_lbl, current_widget_row, 0, 1, 3)
+        layout.addWidget(y1_lbl, current_widget_row, 3, 1, 3)
         current_widget_row += 1
-        layout.addWidget(self.x1_txt, current_widget_row, 0)
-        layout.addWidget(self.y1_txt, current_widget_row, 1)
-        current_widget_row += 1
-
-        layout.addWidget(x_span_lbl, current_widget_row, 0)
-        layout.addWidget(y_len_lbl, current_widget_row, 1)
-        current_widget_row += 1
-        layout.addWidget(self.x_span_txt, current_widget_row, 0)
-        layout.addWidget(self.y_len_txt, current_widget_row, 1)
+        layout.addWidget(self.x1_txt, current_widget_row, 0, 1, 3)
+        layout.addWidget(self.y1_txt, current_widget_row, 3, 1, 3)
         current_widget_row += 1
 
-        layout.addWidget(x_gap_lbl, current_widget_row, 0)
-        layout.addWidget(y_sep_lbl, current_widget_row, 1)
+        layout.addWidget(x_span_lbl, current_widget_row, 0, 1, 3)
+        layout.addWidget(y_len_lbl, current_widget_row, 3, 1, 3)
         current_widget_row += 1
-        layout.addWidget(self.x_gap_txt, current_widget_row, 0)
-        layout.addWidget(self.y_sep_txt, current_widget_row, 1)
+        layout.addWidget(self.x_span_txt, current_widget_row, 0, 1, 3)
+        layout.addWidget(self.y_len_txt, current_widget_row, 3, 1, 3)
         current_widget_row += 1
 
-        layout.addWidget(x_tilt_lbl, current_widget_row, 0)
-        layout.addWidget(y_tilt_lbl, current_widget_row, 1)
+        layout.addWidget(x_gap_lbl, current_widget_row, 0, 1, 3)
+        layout.addWidget(y_sep_lbl, current_widget_row, 3, 1, 3)
         current_widget_row += 1
-        layout.addWidget(self.x_tilt_txt, current_widget_row, 0)
-        layout.addWidget(self.y_tilt_txt, current_widget_row, 1)
+        layout.addWidget(self.x_gap_txt, current_widget_row, 0, 1, 3)
+        layout.addWidget(self.y_sep_txt, current_widget_row, 3, 1, 3)
+        current_widget_row += 1
+
+        layout.addWidget(x_tilt_lbl, current_widget_row, 0, 1, 3)
+        layout.addWidget(y_tilt_lbl, current_widget_row, 3, 1, 3)
+        current_widget_row += 1
+        layout.addWidget(self.x_tilt_txt, current_widget_row, 0, 1, 3)
+        layout.addWidget(self.y_tilt_txt, current_widget_row, 3, 1, 3)
 
         current_widget_row += 2
 
-        cancel_btn = QPushButton('Cancel')
         self._overlay_check = QCheckBox()
-
-        save_btn = QPushButton('Save...')
 
         layout.addWidget(self._overlay_check, current_widget_row, 0)
         layout.addWidget(QLabel('Overlay mask'), current_widget_row, 1)
 
         current_widget_row += 2
 
-        layout.addWidget(cancel_btn, current_widget_row, 0)
-        layout.addWidget(save_btn, current_widget_row, 1)
+        cancel_btn = QPushButton('Cancel')
+        load_btn = QPushButton('Load...')
+        save_btn = QPushButton('Save...')
+
+        layout.addWidget(cancel_btn, current_widget_row, 0, 1, 2)
+        layout.addWidget(load_btn, current_widget_row, 2, 1, 2)
+        layout.addWidget(save_btn, current_widget_row, 4, 1, 2)
 
         self._update_mask_params()
         self._area_location_choice.currentIndexChanged.connect(self._update_mask_params)
@@ -130,12 +133,16 @@ class CreateMaskDlgWidget(QDialog):
         self.y_tilt_txt.textChanged.connect(self._update_mask_overlay)
 
         cancel_btn.clicked.connect(self.close)
+        load_btn.clicked.connect(self._load_mask)
         save_btn.clicked.connect(self._save_mask)
 
         self.setLayout(layout)
 
     def _update_mask_params(self):
         mask_params = get_mask_params(self._area_location_choice.currentData())
+        self._update_mask_params_values(mask_params)
+
+    def _update_mask_params_values(self, mask_params):
         self.x1_txt.setText(str(mask_params['x1']))
         self.x_span_txt.setText(str(mask_params['x_span']))
         self.x_gap_txt.setText(str(mask_params['x_gap']))
@@ -146,6 +153,20 @@ class CreateMaskDlgWidget(QDialog):
         self.y_sep_txt.setText(str(mask_params['y_sep']))
         self.y_tilt_txt.setText(str(mask_params['y_tilt']))
         self._update_mask_overlay()
+
+    def _load_mask(self):
+        options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
+        mask_file, _ = QFileDialog.getOpenFileName(self, 'Select mask file',
+                                                   '',
+                                                   filter='Mask files (*.msk);;All files (*)',
+                                                   options=options)
+        if mask_file:
+            arena = MonitoredArea()
+            arena.load_rois(mask_file)
+            mask_params, n_rows, n_cols = get_mask_params_from_rois(arena)
+            self._rows_box.setValue(n_rows)
+            self._cols_box.setValue(n_cols)
+            self._update_mask_params_values(mask_params)
 
     def _save_mask(self):
         # open the file dialog and save the mask

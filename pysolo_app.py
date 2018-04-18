@@ -40,6 +40,7 @@ class PySoloMainAppWindow(QMainWindow):
         self._load_config_act.triggered.connect(self._open_config)
 
         save_config_act = QAction('&Save', self)
+        save_config_act.setShortcut('Ctrl+S')
         save_config_act.triggered.connect(self._save_current_config)
 
         save_config_as_act = QAction('Save &As', self)
@@ -56,6 +57,7 @@ class PySoloMainAppWindow(QMainWindow):
         new_mask_act.triggered.connect(self._open_new_mask_dlg)
 
         refresh_mask_act = QAction('&Mask ON/OFF', self)
+        refresh_mask_act.setShortcut('Ctrl+M')
         refresh_mask_act.triggered.connect(self._refresh_mask)
 
         file_menu.addAction(self._load_config_act)
