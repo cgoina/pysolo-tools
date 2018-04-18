@@ -369,7 +369,7 @@ class MonitoredAreaFormWidget(QWidget):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
         fileName, _ = QFileDialog.getOpenFileName(self, 'Select mask file',
                                                   self._mask_filename_txt.text(),
-                                                  filter='All files (*)',
+                                                  filter='Mask files (*.msk);;All files (*)',
                                                   options=options)
         if fileName:
             self._update_mask_filename(fileName)
