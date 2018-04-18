@@ -21,6 +21,7 @@ class ImageWidget(QWidget):
         self._movie_file = None
         self._image_frame = None
         self._image_scale = None
+        self._show_rois = False
         self._ratio = image_width / image_height
         self._image_update_thread = QThread()
         self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels)
@@ -114,6 +115,7 @@ class ImageWidget(QWidget):
 
     def _set_image(self, image):
         self._image_frame = image
+        self._show_rois = False
         self._update_image_pixels_async(self._image_frame)
 
     def _update_image_pixels(self, image):
@@ -142,22 +144,29 @@ class ImageWidget(QWidget):
 
     @pyqtSlot(str)
     def _load_and_display_rois(self, rois_mask_file):
-        monitored_area = MonitoredArea()
-        monitored_area.load_rois(rois_mask_file)
-        self._display_rois(monitored_area)
+        if rois_mask_file and not self._show_rois:
+            monitored_area = MonitoredArea()
+            monitored_area.load_rois(rois_mask_file)
+            self._display_rois(monitored_area)
+        else:
+            self._display_rois(None)
 
     @pyqtSlot(MonitoredArea)
     def _display_rois(self, monitored_area):
         if self._movie_file is None:
             return  # do nothing
         roi_image = self._image_frame.copy()
-        color = [255, 0, 0]
-        for roi_index, roi in enumerate(monitored_area.ROIS):
-            if monitored_area.is_roi_trackable(roi_index):
-                roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
-                cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
-                mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
-                cv2.line(roi_image, mid1, mid2, color=color)
+        if monitored_area:
+            color = [255, 0, 0]
+            for roi_index, roi in enumerate(monitored_area.ROIS):
+                if monitored_area.is_roi_trackable(roi_index):
+                    roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
+                    cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
+                    mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
+                    cv2.line(roi_image, mid1, mid2, color=color)
+            self._show_rois = True
+        else:
+            self._show_rois = False
         self._update_image_pixels_async(roi_image)
 
     @pyqtSlot(list)
@@ -173,6 +182,7 @@ class ImageWidget(QWidget):
                     cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
                     mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
                     cv2.line(roi_image, mid1, mid2, color=color)
+        self._show_rois = True
         self._update_image_pixels_async(roi_image)
 
     @pyqtSlot(list)

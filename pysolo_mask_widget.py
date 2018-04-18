@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import os
 from PyQt5.QtCore import QRegExp
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import QPushButton, QLabel, QComboBox, QDialog, QGridLayout, QSpinBox, QLineEdit, QFileDialog, \
@@ -151,12 +151,15 @@ class CreateMaskDlgWidget(QDialog):
         # open the file dialog and save the mask
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
-        mask_fileName, _ = QFileDialog.getSaveFileName(self,
+        mask_file, _ = QFileDialog.getSaveFileName(self,
                                                        'Save mask file',
                                                        '',
                                                        'Mask Files (*.msk);;All Files (*)',
                                                        options=options)
-        if mask_fileName:
+        if mask_file:
+            mask_filename, mask_fileext = os.path.splitext(mask_file)
+            if not mask_fileext:
+                mask_file = mask_file + '.msk'
             # save mask to mask_fileName
             mask_params = {
                 'x1': float(self.x1_txt.text()),
@@ -172,7 +175,7 @@ class CreateMaskDlgWidget(QDialog):
             n_rows = self._rows_box.value()
             n_cols = self._cols_box.value()
             arena = create_mask(n_rows, n_cols, mask_params)
-            arena.save_rois(mask_fileName)
+            arena.save_rois(mask_file)
             self.close() # close if everything went well
 
     def _update_mask_overlay(self):

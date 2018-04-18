@@ -1,10 +1,9 @@
 #!/usr/bin/env python
+import re
 import threading
 from functools import partial
 from pathlib import Path
 
-import cv2
-import os
 from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime, pyqtSignal
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
@@ -66,13 +65,13 @@ class CommonOptionsFormWidget(QWidget):
         group_layout.addWidget(size_lbl, current_layout_row, 0)
         current_layout_row += 1
         size_widget = QWidget()
-        self._min_width_box = QSpinBox()
-        self._min_width_box.setRange(0, 100000)
-        self._max_width_box = QSpinBox()
-        self._max_width_box.setRange(0, 100000)
+        self._width_box = QSpinBox()
+        self._width_box.setRange(0, 100000)
+        self._height_box = QSpinBox()
+        self._height_box.setRange(0, 100000)
         size_layout = QHBoxLayout(size_widget)
-        size_layout.addWidget(self._min_width_box, Qt.AlignLeft)
-        size_layout.addWidget(self._max_width_box, Qt.AlignLeft)
+        size_layout.addWidget(self._width_box, Qt.AlignLeft)
+        size_layout.addWidget(self._height_box, Qt.AlignLeft)
         group_layout.addWidget(size_widget, current_layout_row, 0)
         current_layout_row += 1
 
@@ -111,8 +110,8 @@ class CommonOptionsFormWidget(QWidget):
         # results directory event handlers
         self._results_dir_btn.clicked.connect(self._select_results_dir)
         # image size controls event handlers
-        self._min_width_box.valueChanged.connect(self._update_image_width)
-        self._max_width_box.valueChanged.connect(self._update_image_height)
+        self._width_box.valueChanged.connect(self._update_image_width)
+        self._height_box.valueChanged.connect(self._update_image_height)
         # number of monitored areas control event handlers
         self._n_monitored_areas_box.valueChanged.connect(self._update_number_of_areas)
         # current selected area control event handlers
@@ -138,9 +137,16 @@ class CommonOptionsFormWidget(QWidget):
             if not movie_file.is_opened():
                 QMessageBox.critical(self, 'Movie file error', 'Error opening %s' % filename)
             else:
-                movie_file_path = Path(filename)
-                movie_file_ts_millis = movie_file_path.stat().st_mtime * 1000
-                self._update_acq_time(QDateTime.fromMSecsSinceEpoch(int(movie_file_ts_millis)))
+                acq_time_group = re.search('SR(\d{8}T\d{6})_movie.*', filename)
+                if acq_time_group is not None:
+                    self._update_acq_time(QDateTime.fromString(acq_time_group.group(1), 'yyyyMMddTHHmmss'))
+                else:
+                    movie_file_path = Path(filename)
+                    movie_file_ts_millis = movie_file_path.stat().st_mtime * 1000
+                    self._update_acq_time(QDateTime.fromMSecsSinceEpoch(int(movie_file_ts_millis)))
+                image_size = movie_file.get_size()
+                self._update_image_width(image_size[0])
+                self._update_image_height(image_size[1])
 
         if movie_file is not None and movie_file.is_opened():
             self._config.source = filename
@@ -173,13 +179,13 @@ class CommonOptionsFormWidget(QWidget):
 
     def _update_image_width(self, val):
         self._config.set_image_width(val)
-        self._min_width_box.setValue(val)
+        self._width_box.setValue(val)
         self._communication_channels.video_image_resolution_signal.emit(self._config.get_image_width(),
                                                                         self._config.get_image_height())
 
     def _update_image_height(self, val):
         self._config.set_image_height(val)
-        self._max_width_box.setValue(val)
+        self._height_box.setValue(val)
         self._communication_channels.video_image_resolution_signal.emit(self._config.get_image_width(),
                                                                         self._config.get_image_height())
 
@@ -254,16 +260,11 @@ class MonitoredAreaFormWidget(QWidget):
         self._mask_filename_txt.setDisabled(True)
         mask_filename_lbl = QLabel('Select mask file')
         self._mask_filename_btn = QPushButton('Open...')
-        self._show_mask_btn = QPushButton('Show')
         # add the mask filename control to the layout
         group_layout.addWidget(mask_filename_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._mask_filename_txt, current_layout_row, 0)
-        mask_buttons = QWidget()
-        mask_buttons_layout = QHBoxLayout(mask_buttons)
-        mask_buttons_layout.addWidget(self._mask_filename_btn)
-        mask_buttons_layout.addWidget(self._show_mask_btn)
-        group_layout.addWidget(mask_buttons, current_layout_row, 1)
+        group_layout.addWidget(self._mask_filename_txt, current_layout_row, 0, 1, 2)
+        group_layout.addWidget(self._mask_filename_btn, current_layout_row, 2, 1, 1)
         current_layout_row += 1
 
         # track type
@@ -333,8 +334,6 @@ class MonitoredAreaFormWidget(QWidget):
     def _init_event_handlers(self):
         # source file name event handlers
         self._mask_filename_btn.clicked.connect(self._select_mask_file)
-        # show mask
-        self._show_mask_btn.clicked.connect(self._display_mask)
         # track type
         self._track_type_choice.currentIndexChanged.connect(self._update_track_type)
         # track checkbox
@@ -352,6 +351,8 @@ class MonitoredAreaFormWidget(QWidget):
         # update monitored area
         self._communication_channels.monitored_area_options_signal.connect(self._update_monitored_area)
         self._communication_channels.tracker_running_signal.connect(self.setDisabled)
+        # refresh mask
+        self._communication_channels.refresh_mask_signal.connect(self._refresh_mask)
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -362,18 +363,19 @@ class MonitoredAreaFormWidget(QWidget):
         if fileName:
             self._update_mask_filename(fileName)
 
-    def _display_mask(self):
-        self._communication_channels.maskfile_signal.emit(self._monitored_area.maskfile)
-
     def _update_mask_filename(self, filename):
         if filename:
             self._monitored_area.maskfile = filename
             self._mask_filename_txt.setText(filename)
-            self._show_mask_btn.setDisabled(False)
         else:
             self._monitored_area.maskfile = None
             self._mask_filename_txt.setText('')
-            self._show_mask_btn.setDisabled(True)
+
+    def _refresh_mask(self):
+        if self._monitored_area.maskfile:
+            self._communication_channels.maskfile_signal.emit(self._monitored_area.maskfile)
+        else:
+            self._communication_channels.maskfile_signal.emit('')
 
     def _update_track_type(self, index):
         self._monitored_area.track_type = index
@@ -583,8 +585,6 @@ class TrackerWidget(QWidget):
         self._timer.setInterval(500)
         self._timer.start()
 
-        tracker_status = TrackerStatus(self._communication_channels, True)
-
         def update_frame_image(frame_pos, fly_coords, force_update=False, monitored_areas=None):
             if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
                 self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
@@ -592,7 +592,7 @@ class TrackerWidget(QWidget):
             if monitored_areas is not None and self._show_rois_during_tracking.checkState():
                 self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas)
 
-        def process_frames():
+        def process_frames(tracker_status):
             update_frame_image(0, [], force_update=True)
 
             image_source, monitored_areas = prepare_monitored_areas(self._config,
@@ -616,7 +616,8 @@ class TrackerWidget(QWidget):
         # before starting the tracker check if the config is valid
         config_errors = self._config.validate()
         if len(config_errors) == 0:
-            t = threading.Thread(target=process_frames)
+            tracker_status = TrackerStatus(self._communication_channels, True)
+            t = threading.Thread(target=process_frames, args=(tracker_status,))
             t.setDaemon(True)
             t.start()
         else:
@@ -630,6 +631,7 @@ class TrackerWidget(QWidget):
 
     def _stop_timer(self):
         self._timer.stop()
+
 
 class TrackerStatus(QObject):
 
@@ -672,8 +674,7 @@ class FormWidget(QWidget):
         scroll_area.setEnabled(True)
 
         scroll_area_widget = QWidget()
-        # scroll_area_widget.setGeometry(QRect(0, 0, 1112, 1400))
-        scroll_area_widget.setMinimumWidth(640)
+        scroll_area_widget.setMinimumWidth(800)
         scroll_area_widget.setLayout(grid_layout)
         scroll_area.setWidget(scroll_area_widget)
 

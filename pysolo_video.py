@@ -32,7 +32,8 @@ class MonitoredArea():
                  aggregated_frames_size=60,
                  tracking_data_buffer_size=5,
                  extend=True,
-                 acq_time=None):
+                 acq_time=None,
+                 results_suffix=''):
         """
         :param track_type: 
         :param sleep_deprivation_flag:
@@ -55,6 +56,7 @@ class MonitoredArea():
         self._acq_time = datetime.now() if acq_time is None else acq_time
         self._roi_filter = None
         self._extend = extend
+        self._result_suffix = results_suffix
 
         # shape ( rois, (x, y) ) - contains the coordinates of the current frame per ROI
         self._current_frame_fly_coord = np.zeros((1, 2), dtype=np.int)
@@ -68,6 +70,9 @@ class MonitoredArea():
         # too large these will drift apart
         self._aggregated_frames_buffer_index = 0
         self._first_position = (0, 0)
+
+    def get_results_suffix(self):
+        return self._result_suffix
 
     def set_roi_filter(self, trackable_rois):
         """
@@ -196,7 +201,8 @@ class MonitoredArea():
             self.ROIS = pickle.load(cf)
             self._points_to_track = pickle.load(cf)
         self._reset_data_buffers()
-        for roi in self.ROIS:
+        for roi_index, roi in enumerate(self.ROIS):
+            _logger.debug('ROI: %d: %r' % (roi_index + 1, roi))
             self._beams.append(self.get_midline(roi))
             self.rois_background.append(None)
 
@@ -664,7 +670,7 @@ class MovieFile(ImageSource):
 
 def estimate_background(image_source,
                         gaussian_filter_size=(3, 3),
-                        gaussian_sigma=1,
+                        gaussian_sigma=0,
                         cancel_callback=None):
     background = None
     average = None
@@ -690,16 +696,19 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
                              resolution=config.image_size)
 
     def create_monitored_area(configured_area_index, configured_area):
+        start = '0' if start_frame_msecs is None else str(start_frame_msecs)
+        end = 'end' if end_frame_msecs is None else str(end_frame_msecs)
         ma = MonitoredArea(track_type=configured_area.track_type,
                            sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
                            fps=image_source.get_fps(),
                            aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
                            acq_time=config.acq_time,
-                           extend=configured_area.extend_flag)
+                           extend=configured_area.extend_flag,
+                           results_suffix=start + '-' + end)
         ma.set_roi_filter(configured_area.tracked_rois_filter)
         ma.load_rois(configured_area.maskfile)
         ma.set_output(
-            os.path.join(config.data_folder, 'Monitor%02d.txt' % (configured_area_index + 1))
+            os.path.join(config.data_folder, 'Monitor%02d.txt%s' % (configured_area_index + 1, ma.get_results_suffix()))
         )
         return ma
 
@@ -710,7 +719,7 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
 
 def process_image_frames(image_source, monitored_areas,
                          gaussian_filter_size=(3, 3),
-                         gaussian_sigma=1,
+                         gaussian_sigma=0,
                          moving_alpha=0.2,
                          cancel_callback=None,
                          frame_callback=None,
@@ -718,6 +727,7 @@ def process_image_frames(image_source, monitored_areas,
     image_scalef = image_source.get_scale()
     pool = ThreadPool(mp_pool_size)
 
+    results = None
     for frame_image, frame_index, frame_time_pos in _next_image_frame(image_source, cancel_callback=cancel_callback):
         _logger.debug('Process frame %d(frame time: %rs)' % (frame_index, frame_time_pos))
 
@@ -747,6 +757,11 @@ def process_image_frames(image_source, monitored_areas,
             monitored_area.update_frame_activity(frame_time_pos)
 
         list(map(update_monitored_area_activity, monitored_areas))
+
+    if results is not None and frame_callback:
+        frame_callback(frame_index,
+                       [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results],
+                       force_update=True)
 
     frame_time_pos = image_source.get_current_frame_time_in_seconds()
     _logger.info('Aggregate the remaining frames - frame time: %ds' % frame_time_pos)
@@ -783,7 +798,7 @@ def _next_monitored_area_roi(monitored_areas):
 
 def _process_roi(image, monitored_area, roi, roi_index,
                  gaussian_filter_size=(3, 3),
-                 gaussian_sigma=1,
+                 gaussian_sigma=0,
                  moving_alpha=0.2,
                  scalef=(1, 1)):
     (roi_min_x, roi_min_y), (roi_max_x, roi_max_y) = monitored_area.roi_to_rect(roi, scalef)
