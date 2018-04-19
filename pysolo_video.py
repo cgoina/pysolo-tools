@@ -726,7 +726,7 @@ def process_image_frames(image_source, monitored_areas,
                          moving_alpha=0.2,
                          cancel_callback=None,
                          frame_callback=None,
-                         mp_pool_size=4):
+                         mp_pool_size=1):
     image_scalef = image_source.get_scale()
     pool = ThreadPool(mp_pool_size)
 

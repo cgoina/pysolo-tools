@@ -633,8 +633,7 @@ class TrackerWidget(QWidget):
                                      cancel_callback=tracker_status.is_running,
                                      frame_callback=partial(update_frame_image, monitored_areas=monitored_areas),
                                      gaussian_filter_size=(self._gaussian_kernel_size, self._gaussian_kernel_size),
-                                     gaussian_sigma=0,
-                                     mp_pool_size=1)
+                                     gaussian_sigma=0)
                 image_source.close()
 
             self._stop_tracker()
