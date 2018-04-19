@@ -33,7 +33,8 @@ def main():
     parser.add_argument('--smooth-filter-sigma', default=0, type=int, dest='gaussian_filter_sigma',
                         help='Gaussian filter sigma')
     parser.add_argument('--nthreads', default=1, type=int, dest='nthreads')
-    parser.add_argument('--nprocesses', default=1, type=int, dest='nprocesses')
+    parser.add_argument('--nprocesses', default=1, type=int, dest='nprocesses',
+                        help='Number of processes to run in parallel')
 
     args = parser.parse_args()
 
