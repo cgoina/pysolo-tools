@@ -6,6 +6,7 @@ conda create -n pysolo-tools python=3.6
 conda activate pysolo-tools
 conda install opencv
 conda install pyqt
+pip install multiprocess
 ```
 
 ### Running the application
