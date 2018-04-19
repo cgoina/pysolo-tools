@@ -104,6 +104,7 @@ class CreateMaskDlgWidget(QDialog):
         current_widget_row += 2
 
         self._overlay_check = QCheckBox()
+        self._overlay_check.setCheckState(True)
 
         layout.addWidget(self._overlay_check, current_widget_row, 0)
         layout.addWidget(QLabel('Overlay mask'), current_widget_row, 1)

@@ -77,24 +77,26 @@ def get_mask_params_from_rois(arena):
         if prev_roi is None:
             x1 = a[0]
             y1 = a[1]
-            x_span = c[0] - a[0]
+            x_span = d[0] - a[0]
             y_len = b[1] - a[1]
             n_rows = 1
             n_cols = 1
         else:
             (pa, pb, pc, pd) = prev_roi
             row += 1
-            if pa[1] > a[1]:
+            if a[1] > pa[1] + y_len:
+                # new row
+                if n_rows == 1 and n_cols == 1:
+                    x_tilt = a[0] - x1
+                    y_sep = a[1] - y_len - y1
+                if row + 1 > n_rows:
+                    n_rows += 1
+            else:
                 if n_cols == 1:
                     y_tilt = a[1] - y1
                     x_gap = a[0] - x1 - x_span
                 n_cols += 1
                 row = 0
-            elif row + 1 > n_rows:
-                if n_rows == 1 and n_cols == 1:
-                    x_tilt = a[0] - x1
-                    y_gap = a[1] - y_len - y1
-                n_rows += 1
 
         prev_roi = roi
 
