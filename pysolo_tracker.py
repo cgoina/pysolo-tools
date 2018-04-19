@@ -7,10 +7,14 @@ import sys
 from argparse import ArgumentParser
 
 from pysolo_config import load_config
-from pysolo_video import (process_image_frames, prepare_monitored_areas)
+from pysolo_video import (process_image_frames, prepare_monitored_areas, MovieFile)
+
+
+_logger = None
 
 
 def main():
+    global _logger
     parser = ArgumentParser(usage='prog [options]')
     parser.add_argument('-c', '--config',
                         dest='config_file', required=True,
@@ -43,22 +47,26 @@ def main():
     errors |= set(config.validate())
 
     if len(errors) == 0:
-        image_source, monitored_areas = prepare_monitored_areas(config,
-                                                                start_frame_msecs=args.start_frame_pos * 1000,
-                                                                end_frame_msecs=args.end_frame_pos * 1000)
-        if (image_source.is_opened()):
-            background_image = None
-            if config.source_background_image and os.path.exists(config.source_background_image):
-                background_image = cv2.imread(config.source_background_image)
-            process_image_frames(image_source, monitored_areas,
-                                 gaussian_filter_size=(args.gaussian_filter_size, args.gaussian_filter_size),
-                                 gaussian_sigma=args.gaussian_filter_sigma,
-                                 mp_pool_size=args.nthreads)
-            image_source.close()
-        else:
-            _logger.error('Error opening %s' % config.source)
+        _run_tracker(config, args.start_frame_pos * 1000, args.end_frame_pos * 1000,
+                     args.gaussian_filter_size, args.gaussian_filter_sigma, args.nthreads)
     else:
         _logger.error('Config load error: %r' % errors)
+
+
+def _run_tracker(config, start_pos_msecs, end_pos_msecs, gaussian_filter_size, gaussian_filter_sigma, nthreads):
+    image_source = MovieFile(config.source,
+                             start_msecs=start_pos_msecs,
+                             end_msecs=end_pos_msecs,
+                             resolution=config.image_size)
+    if not image_source.is_opened():
+        _logger.error('Error opening %s' % config.source)
+    else:
+        monitored_areas = prepare_monitored_areas(image_source, config)
+        process_image_frames(image_source, monitored_areas,
+                             gaussian_filter_size=(gaussian_filter_size, gaussian_filter_size),
+                             gaussian_sigma=gaussian_filter_sigma,
+                             mp_pool_size=nthreads)
+        image_source.close()
 
 
 if __name__ == '__main__':

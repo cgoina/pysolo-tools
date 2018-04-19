@@ -695,22 +695,16 @@ def estimate_background(image_source,
     return background
 
 
-def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None):
-    image_source = MovieFile(config.source,
-                             start_msecs=start_frame_msecs,
-                             end_msecs=end_frame_msecs,
-                             resolution=config.image_size)
+def prepare_monitored_areas(image_source, config, results_suffix=''):
 
     def create_monitored_area(configured_area_index, configured_area):
-        start = '0' if start_frame_msecs is None or start_frame_msecs < 0 else str(start_frame_msecs / 1000)
-        end = 'end' if end_frame_msecs is None or end_frame_msecs < 0 else str(end_frame_msecs / 1000)
         ma = MonitoredArea(track_type=configured_area.track_type,
                            sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
                            fps=image_source.get_fps(),
                            aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
                            acq_time=config.acq_time,
                            extend=configured_area.extend_flag,
-                           results_suffix=start + '-' + end)
+                           results_suffix=results_suffix)
         ma.set_roi_filter(configured_area.tracked_rois_filter)
         ma.load_rois(configured_area.maskfile)
         ma.set_output(
@@ -721,9 +715,9 @@ def prepare_monitored_areas(config, start_frame_msecs=None, end_frame_msecs=None
         )
         return ma
 
-    return image_source, [create_monitored_area(area_index, configured_area)
-                          for area_index, configured_area in enumerate(config.get_monitored_areas())
-                          if configured_area.track_flag]
+    return [create_monitored_area(area_index, configured_area)
+            for area_index, configured_area in enumerate(config.get_monitored_areas())
+            if configured_area.track_flag]
 
 
 def process_image_frames(image_source, monitored_areas,

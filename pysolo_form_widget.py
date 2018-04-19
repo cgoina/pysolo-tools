@@ -620,21 +620,22 @@ class TrackerWidget(QWidget):
         def process_frames(tracker_status):
             update_frame_image(0, [], force_update=True)
 
-            image_source, monitored_areas = prepare_monitored_areas(self._config,
-                                                                    start_frame_msecs=self._start_frame_msecs,
-                                                                    end_frame_msecs=self._end_frame_msecs)
+            image_source = MovieFile(self._config.source,
+                                     start_msecs=self._start_frame_msecs,
+                                     end_msecs=self._end_frame_msecs,
+                                     resolution=self._config.image_size)
 
-            if image_source.is_opened():
+            if not image_source.is_opened():
+                QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.source)
+            else:
+                monitored_areas = prepare_monitored_areas(image_source, self._config)
                 process_image_frames(image_source, monitored_areas,
                                      cancel_callback=tracker_status.is_running,
                                      frame_callback=partial(update_frame_image, monitored_areas=monitored_areas),
                                      gaussian_filter_size=(self._gaussian_kernel_size, self._gaussian_kernel_size),
                                      gaussian_sigma=0,
                                      mp_pool_size=1)
-
                 image_source.close()
-            else:
-                QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.source)
 
             self._stop_tracker()
 
