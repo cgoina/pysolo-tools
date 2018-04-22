@@ -4,7 +4,7 @@ import threading
 from functools import partial
 from pathlib import Path
 
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime, pyqtSignal
+from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime, pyqtSignal, QRect
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
@@ -16,7 +16,7 @@ from pysolo_video import MovieFile, process_image_frames, prepare_monitored_area
 
 class CommonOptionsFormWidget(QWidget):
 
-    def __init__(self, communication_channels, config, max_monitored_areas=64):
+    def __init__(self, communication_channels, config, max_monitored_areas=100):
         super(CommonOptionsFormWidget, self).__init__()
         self._communication_channels = communication_channels
         self._config = config
@@ -33,19 +33,21 @@ class CommonOptionsFormWidget(QWidget):
         self._source_filename_txt.setDisabled(True)
         source_filename_lbl = QLabel('Select source file')
         self._source_filename_btn = QPushButton('Open...')
+        self._source_filename_btn.setFixedSize(75, 32)
         # add the source filename control to the layout
         group_layout.addWidget(source_filename_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._source_filename_txt, current_layout_row, 0)
-        group_layout.addWidget(self._source_filename_btn, current_layout_row, 1)
+        group_layout.addWidget(self._source_filename_txt, current_layout_row, 0, 1, 4)
+        group_layout.addWidget(self._source_filename_btn, current_layout_row, 4, 1, 1)
         current_layout_row += 1
 
         # acquisition time
         acq_time_lbl = QLabel('Acquisition time')
         self._acq_time_dt = QDateTimeEdit()
+        self._acq_time_dt.setDisplayFormat('yyyy-MM-dd HH:mm:ss')
         group_layout.addWidget(acq_time_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._acq_time_dt, current_layout_row, 0)
+        group_layout.addWidget(self._acq_time_dt, current_layout_row, 0, 1, 1)
         current_layout_row += 1
 
         # results directory widgets
@@ -56,23 +58,20 @@ class CommonOptionsFormWidget(QWidget):
         # add the source filename control to the layout
         group_layout.addWidget(results_dir_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._results_dir_txt, current_layout_row, 0)
-        group_layout.addWidget(self._results_dir_btn, current_layout_row, 1)
+        group_layout.addWidget(self._results_dir_txt, current_layout_row, 0, 1, 4)
+        group_layout.addWidget(self._results_dir_btn, current_layout_row, 4, 1, 1)
         current_layout_row += 1
 
         # size
         size_lbl = QLabel('Size (Width x Height)')
         group_layout.addWidget(size_lbl, current_layout_row, 0)
         current_layout_row += 1
-        size_widget = QWidget()
         self._width_box = QSpinBox()
         self._width_box.setRange(0, 100000)
         self._height_box = QSpinBox()
         self._height_box.setRange(0, 100000)
-        size_layout = QHBoxLayout(size_widget)
-        size_layout.addWidget(self._width_box, Qt.AlignLeft)
-        size_layout.addWidget(self._height_box, Qt.AlignLeft)
-        group_layout.addWidget(size_widget, current_layout_row, 0)
+        group_layout.addWidget(self._width_box, current_layout_row, 0, 1, 1)
+        group_layout.addWidget(self._height_box, current_layout_row, 1, 1, 1)
         current_layout_row += 1
 
         # number of monitored regions widgets
@@ -83,7 +82,7 @@ class CommonOptionsFormWidget(QWidget):
         # add the number of monitored regions control to the layout
         group_layout.addWidget(n_monitored_areas_lbl, current_layout_row, 0)
         current_layout_row += 1
-        group_layout.addWidget(self._n_monitored_areas_box, current_layout_row, 0)
+        group_layout.addWidget(self._n_monitored_areas_box, current_layout_row, 0, 1, 1)
         current_layout_row += 1
 
         # current region widgets
