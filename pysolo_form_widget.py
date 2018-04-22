@@ -9,7 +9,7 @@ from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTim
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
-                             QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox, QPlainTextEdit)
+                             QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox, QTextEdit)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
 from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas, estimate_background
@@ -35,14 +35,14 @@ class CommonOptionsFormWidget(QWidget):
         self._source_filename_btn = QPushButton('Open...')
         self._source_filename_btn.setFixedSize(75, 32)
         # add the source filename control to the layout
-        group_layout.addWidget(QLabel('Select source file'), current_layout_row, 0, 1, 3)
+        group_layout.addWidget(QLabel('Select source file'), current_layout_row, 0, 1, 2)
         current_layout_row += 1
         group_layout.addWidget(self._source_filename_txt, current_layout_row, 0, 1, 4)
         group_layout.addWidget(self._source_filename_btn, current_layout_row, 4, 1, 1)
         current_layout_row += 1
 
         # acquisition time
-        group_layout.addWidget(QLabel('Acquisition time'), current_layout_row, 0, 1, 3)
+        group_layout.addWidget(QLabel('Acquisition time'), current_layout_row, 0, 1, 2)
         current_layout_row += 1
         self._acq_time_dt = QDateTimeEdit()
         self._acq_time_dt.setDisplayFormat('yyyy-MM-dd HH:mm:ss')
@@ -54,15 +54,14 @@ class CommonOptionsFormWidget(QWidget):
         self._results_dir_txt.setDisabled(True)
         self._results_dir_btn = QPushButton('Select...')
         # add the source filename control to the layout
-        group_layout.addWidget(QLabel('Select results directory'), current_layout_row, 0, 1, 3)
+        group_layout.addWidget(QLabel('Select results directory'), current_layout_row, 0, 1, 2)
         current_layout_row += 1
         group_layout.addWidget(self._results_dir_txt, current_layout_row, 0, 1, 4)
         group_layout.addWidget(self._results_dir_btn, current_layout_row, 4, 1, 1)
         current_layout_row += 1
         # size
-        group_layout.addWidget(QLabel('Size (Width x Height)'), current_layout_row, 0, 1, 3)
-        group_layout.addWidget(QLabel('Size (Width x Height)'), current_layout_row, 0, 1, 3)
-        group_layout.addWidget(ConfigDisplayWidget(self._communication_channels, self._config), current_layout_row, 2, 6, 3)
+        group_layout.addWidget(QLabel('Size (Width x Height)'), current_layout_row, 0, 1, 2)
+        group_layout.addWidget(QLabel('Monitored Areas summary'), current_layout_row, 2, 1, 2, alignment=Qt.AlignLeft)
         current_layout_row += 1
         self._width_box = QSpinBox()
         self._width_box.setRange(0, 100000)
@@ -70,6 +69,7 @@ class CommonOptionsFormWidget(QWidget):
         self._height_box.setRange(0, 100000)
         group_layout.addWidget(self._width_box, current_layout_row, 0, 1, 1)
         group_layout.addWidget(self._height_box, current_layout_row, 1, 1, 1)
+        group_layout.addWidget(ConfigDisplayWidget(self._communication_channels, self._config), current_layout_row, 2, 6, 3)
         current_layout_row += 1
 
         # number of monitored regions widgets
@@ -77,7 +77,7 @@ class CommonOptionsFormWidget(QWidget):
         self._n_monitored_areas_box.setMinimum(0)
         self._n_monitored_areas_box.setMaximum(self._max_monitored_areas)
         # add the number of monitored regions control to the layout
-        group_layout.addWidget(QLabel('Number of monitored areas'), current_layout_row, 0, 1, 3)
+        group_layout.addWidget(QLabel('Number of monitored areas'), current_layout_row, 0, 1, 2)
         current_layout_row += 1
         group_layout.addWidget(self._n_monitored_areas_box, current_layout_row, 0, 1, 1)
         current_layout_row += 1
@@ -85,7 +85,7 @@ class CommonOptionsFormWidget(QWidget):
         self._selected_area_choice = QComboBox()
         self._selected_area_choice.setDisabled(True)
         # add selected region control to the layout
-        group_layout.addWidget(QLabel('Select area'), current_layout_row, 0, 1, 3)
+        group_layout.addWidget(QLabel('Select area'), current_layout_row, 0, 1, 2)
         current_layout_row += 1
         group_layout.addWidget(self._selected_area_choice, current_layout_row, 0)
         current_layout_row += 1
@@ -259,14 +259,10 @@ class ConfigDisplayWidget(QWidget):
     def _init_ui(self):
         layout = QVBoxLayout()
 
-        groupbox = QGroupBox("Monitored Areas Summary")
-        groupbox_layout = QVBoxLayout()
-        self._monitored_areas_summary = QPlainTextEdit()
+        self._monitored_areas_summary = QTextEdit()
         self._monitored_areas_summary.setReadOnly(True)
-        groupbox_layout.addWidget(self._monitored_areas_summary)
-        groupbox.setLayout(groupbox_layout)
+        layout.addWidget(self._monitored_areas_summary)
 
-        layout.addWidget(groupbox)
         self.setLayout(layout)
 
     def _init_event_handlers(self):
@@ -280,7 +276,7 @@ class ConfigDisplayWidget(QWidget):
         self._refresh_display()
 
     def _refresh_display(self):
-        buffer = 'Monitored areas #: ' + str(self._config.monitored_areas_count) + '\n'
+        buffer = ''
         for ma_index, ma in enumerate(self._config.get_monitored_areas()):
             buffer += 'Area ' + str(ma_index + 1) + ':\n'
             buffer += self._indent('Mask: ' + self._get_maskfile(ma) + '\n')
@@ -288,10 +284,11 @@ class ConfigDisplayWidget(QWidget):
             buffer += self._indent(
                 'Aggregation interval: %d %s\n'  % (ma.aggregation_interval, ma.aggregation_interval_units)
             )
+            buffer += self._indent('ROI filter: ' + ma.get_rois_filter_as_str() + '\n')
         self._monitored_areas_summary.setPlainText(buffer)
 
     def _indent(self, text):
-        return '  ' + text
+        return '    ' + text
 
     def _get_maskfile(self, ma):
         if ma.maskfile:
@@ -447,10 +444,12 @@ class MonitoredAreaFormWidget(QWidget):
             self._communication_channels.maskfile_signal.emit(self._monitored_area.maskfile)
         else:
             self._communication_channels.maskfile_signal.emit('')
+        self._communication_channels.refresh_display_signal.emit()
 
     def _update_track_type(self, index):
         self._monitored_area.track_type = index
         self._track_type_choice.setCurrentIndex(index)
+        self._communication_channels.refresh_display_signal.emit()
 
     def _update_track_flag(self, val):
         self._track_check.setCheckState(val)
@@ -460,14 +459,17 @@ class MonitoredAreaFormWidget(QWidget):
         else:
             self._monitored_area.track_flag = False
             self._track_type_choice.setDisabled(True)
+        self._communication_channels.refresh_display_signal.emit()
 
     def _update_sleep_deprivation_flag(self, val):
         self._sleep_deprivation_check.setCheckState(val)
         self._monitored_area.sleep_deprived_flag = True if val == Qt.Checked else False
+        self._communication_channels.refresh_display_signal.emit()
 
     def _update_aggregation_interval(self, val):
         self._monitored_area.aggregation_interval = val
         self._aggregation_interval_box.setValue(val)
+        self._communication_channels.refresh_display_signal.emit()
 
     def _update_aggregation_interval_units(self, index, units=None):
         if index == 0:
@@ -489,6 +491,7 @@ class MonitoredAreaFormWidget(QWidget):
             index = 0
             self._monitored_area.aggregation_interval_units = 'frames'
         self._aggregation_interval_units_choice.setCurrentIndex(index)
+        self._communication_channels.refresh_display_signal.emit()
 
     def _update_roi_filter(self, roi_filter_str):
         if roi_filter_str:
@@ -496,6 +499,7 @@ class MonitoredAreaFormWidget(QWidget):
         else:
             self._roi_filter_txt.setText('')
         self._monitored_area.set_rois_filter_as_str(roi_filter_str)
+        self._communication_channels.refresh_display_signal.emit()
 
     @pyqtSlot(int)
     def _update_selected_area(self, area_index):
@@ -515,6 +519,7 @@ class MonitoredAreaFormWidget(QWidget):
         self._update_aggregation_interval(self._monitored_area.aggregation_interval)
         self._update_aggregation_interval_units(-1, units=self._monitored_area.aggregation_interval_units)
         self._update_roi_filter(self._monitored_area.get_rois_filter_as_str())
+        self._communication_channels.refresh_display_signal.emit()
 
 
 class TrackerWidget(QWidget):
