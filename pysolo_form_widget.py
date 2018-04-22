@@ -69,7 +69,7 @@ class CommonOptionsFormWidget(QWidget):
         self._height_box.setRange(0, 100000)
         group_layout.addWidget(self._width_box, current_layout_row, 0, 1, 1)
         group_layout.addWidget(self._height_box, current_layout_row, 1, 1, 1)
-        group_layout.addWidget(ConfigDisplayWidget(self._communication_channels, self._config), current_layout_row, 2, 6, 3)
+        group_layout.addWidget(ConfigDisplayWidget(self._communication_channels, self._config), current_layout_row, 2, 6, 2)
         current_layout_row += 1
 
         # number of monitored regions widgets
@@ -326,13 +326,12 @@ class MonitoredAreaFormWidget(QWidget):
         # source file name widgets
         self._mask_filename_txt = QLineEdit()
         self._mask_filename_txt.setDisabled(True)
-        mask_filename_lbl = QLabel('Select mask file')
         self._mask_filename_btn = QPushButton('Open...')
         # add the mask filename control to the layout
-        group_layout.addWidget(mask_filename_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Select mask file'), current_layout_row, 0, 1, 1)
         current_layout_row += 1
-        group_layout.addWidget(self._mask_filename_txt, current_layout_row, 0, 1, 2)
-        group_layout.addWidget(self._mask_filename_btn, current_layout_row, 2, 1, 1)
+        group_layout.addWidget(self._mask_filename_txt, current_layout_row, 0, 1, 4)
+        group_layout.addWidget(self._mask_filename_btn, current_layout_row, 4, 1, 1)
         current_layout_row += 1
 
         # track type
@@ -341,57 +340,47 @@ class MonitoredAreaFormWidget(QWidget):
         self._track_type_choice.addItem('Crossover', 1)
         self._track_type_choice.addItem('Position', 2)
 
-        track_type_lbl = QLabel('Select Track Type')
         # add track type control to the layout
-        group_layout.addWidget(track_type_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Select Track Type'), current_layout_row, 0, 1, 1)
         current_layout_row += 1
-        group_layout.addWidget(self._track_type_choice, current_layout_row, 0)
+        group_layout.addWidget(self._track_type_choice, current_layout_row, 0, 1, 1)
         current_layout_row += 1
 
         # track flag
         self._track_check = QCheckBox()
-        track_flag_lbl = QLabel('Monitor area')
         track_flag_widget = QWidget()
         track_flag_layout = QHBoxLayout(track_flag_widget)
         track_flag_layout.addWidget(self._track_check)
-        track_flag_layout.addWidget(track_flag_lbl, Qt.AlignLeft)
-        group_layout.addWidget(track_flag_widget, current_layout_row, 0)
+        track_flag_layout.addWidget(QLabel('Monitor area'), Qt.AlignLeft)
+        group_layout.addWidget(track_flag_widget, current_layout_row, 0, 1, 1)
 
         # sleep deprivation flag
         self._sleep_deprivation_check = QCheckBox()
-        sleep_deprivation_lbl = QLabel('Sleep deprivation')
         sleep_deprivationwidget = QWidget()
         sleep_deprivation_layout = QHBoxLayout(sleep_deprivationwidget)
         sleep_deprivation_layout.addWidget(self._sleep_deprivation_check)
-        sleep_deprivation_layout.addWidget(sleep_deprivation_lbl, Qt.AlignLeft)
-        group_layout.addWidget(sleep_deprivationwidget, current_layout_row, 1)
+        sleep_deprivation_layout.addWidget(QLabel('Sleep deprivation'), Qt.AlignLeft)
+        group_layout.addWidget(sleep_deprivationwidget, current_layout_row, 1, 1, 1)
         current_layout_row += 1
 
         # Aggregation interval
-        aggregation_interval_lbl = QLabel('Aggregation interval')
-        group_layout.addWidget(aggregation_interval_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Aggregation interval'), current_layout_row, 0)
         current_layout_row += 1
-        aggregation_interval_widget = QWidget()
         self._aggregation_interval_box = QSpinBox()
         self._aggregation_interval_box.setRange(1, 10000000)
         self._aggregation_interval_units_choice = QComboBox()
         self._aggregation_interval_units_choice.addItem('frames', 'frames')
         self._aggregation_interval_units_choice.addItem('seconds', 'sec')
         self._aggregation_interval_units_choice.addItem('minutes', 'min')
-        aggregation_interval_layout = QHBoxLayout(aggregation_interval_widget)
-        aggregation_interval_layout.addWidget(self._aggregation_interval_box, Qt.AlignLeft)
-        aggregation_interval_layout.addWidget(self._aggregation_interval_units_choice, Qt.AlignLeft)
-        group_layout.addWidget(aggregation_interval_widget, current_layout_row, 0)
+        group_layout.addWidget(self._aggregation_interval_box, current_layout_row, 0, 1, 1)
+        group_layout.addWidget(self._aggregation_interval_units_choice, current_layout_row, 1, 1, 1)
         current_layout_row += 1
-
         # ROI filter
-        roi_filter_lbl = QLabel('ROI filter (comma delimitted)')
-        group_layout.addWidget(roi_filter_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('ROI filter (comma delimitted)'), current_layout_row, 0, 1, 3)
         current_layout_row += 1
         self._roi_filter_txt = QLineEdit()
-        group_layout.addWidget(self._roi_filter_txt, current_layout_row, 0)
+        group_layout.addWidget(self._roi_filter_txt, current_layout_row, 0, 1, 2)
         current_layout_row += 1
-
         # set the layout
         groupBox = QGroupBox()
         groupBox.setLayout(group_layout)
