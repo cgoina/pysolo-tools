@@ -61,7 +61,7 @@ class CommonOptionsFormWidget(QWidget):
         current_layout_row += 1
         # size
         group_layout.addWidget(QLabel('Size (Width x Height)'), current_layout_row, 0, 1, 2)
-        group_layout.addWidget(QLabel('Monitored Areas summary'), current_layout_row, 2, 1, 2, alignment=Qt.AlignLeft)
+        group_layout.addWidget(QLabel('Monitored Areas Summary'), current_layout_row, 2, 1, 2, alignment=Qt.AlignLeft)
         current_layout_row += 1
         self._width_box = QSpinBox()
         self._width_box.setRange(0, 100000)
