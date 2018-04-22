@@ -4,11 +4,12 @@ import threading
 from functools import partial
 from pathlib import Path
 
+import os
 from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime, pyqtSignal, QRect
 from PyQt5.QtGui import QRegExpValidator
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
-                             QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox)
+                             QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox, QPlainTextEdit)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
 from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas, estimate_background
@@ -31,40 +32,37 @@ class CommonOptionsFormWidget(QWidget):
         # source file name widgets
         self._source_filename_txt = QLineEdit()
         self._source_filename_txt.setDisabled(True)
-        source_filename_lbl = QLabel('Select source file')
         self._source_filename_btn = QPushButton('Open...')
         self._source_filename_btn.setFixedSize(75, 32)
         # add the source filename control to the layout
-        group_layout.addWidget(source_filename_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Select source file'), current_layout_row, 0, 1, 3)
         current_layout_row += 1
         group_layout.addWidget(self._source_filename_txt, current_layout_row, 0, 1, 4)
         group_layout.addWidget(self._source_filename_btn, current_layout_row, 4, 1, 1)
         current_layout_row += 1
 
         # acquisition time
-        acq_time_lbl = QLabel('Acquisition time')
+        group_layout.addWidget(QLabel('Acquisition time'), current_layout_row, 0, 1, 3)
+        current_layout_row += 1
         self._acq_time_dt = QDateTimeEdit()
         self._acq_time_dt.setDisplayFormat('yyyy-MM-dd HH:mm:ss')
-        group_layout.addWidget(acq_time_lbl, current_layout_row, 0)
-        current_layout_row += 1
-        group_layout.addWidget(self._acq_time_dt, current_layout_row, 0, 1, 1)
+        group_layout.addWidget(self._acq_time_dt, current_layout_row, 0, 1, 2)
         current_layout_row += 1
 
         # results directory widgets
         self._results_dir_txt = QLineEdit()
         self._results_dir_txt.setDisabled(True)
-        results_dir_lbl = QLabel('Select results directory')
         self._results_dir_btn = QPushButton('Select...')
         # add the source filename control to the layout
-        group_layout.addWidget(results_dir_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Select results directory'), current_layout_row, 0, 1, 3)
         current_layout_row += 1
         group_layout.addWidget(self._results_dir_txt, current_layout_row, 0, 1, 4)
         group_layout.addWidget(self._results_dir_btn, current_layout_row, 4, 1, 1)
         current_layout_row += 1
-
         # size
-        size_lbl = QLabel('Size (Width x Height)')
-        group_layout.addWidget(size_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Size (Width x Height)'), current_layout_row, 0, 1, 3)
+        group_layout.addWidget(QLabel('Size (Width x Height)'), current_layout_row, 0, 1, 3)
+        group_layout.addWidget(ConfigDisplayWidget(self._communication_channels, self._config), current_layout_row, 2, 6, 3)
         current_layout_row += 1
         self._width_box = QSpinBox()
         self._width_box.setRange(0, 100000)
@@ -78,23 +76,19 @@ class CommonOptionsFormWidget(QWidget):
         self._n_monitored_areas_box = QSpinBox()
         self._n_monitored_areas_box.setMinimum(0)
         self._n_monitored_areas_box.setMaximum(self._max_monitored_areas)
-        n_monitored_areas_lbl = QLabel('Number of monitored areas')
         # add the number of monitored regions control to the layout
-        group_layout.addWidget(n_monitored_areas_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Number of monitored areas'), current_layout_row, 0, 1, 3)
         current_layout_row += 1
         group_layout.addWidget(self._n_monitored_areas_box, current_layout_row, 0, 1, 1)
         current_layout_row += 1
-
         # current region widgets
         self._selected_area_choice = QComboBox()
         self._selected_area_choice.setDisabled(True)
-        selected_region_lbl = QLabel('Select area')
         # add selected region control to the layout
-        group_layout.addWidget(selected_region_lbl, current_layout_row, 0)
+        group_layout.addWidget(QLabel('Select area'), current_layout_row, 0, 1, 3)
         current_layout_row += 1
         group_layout.addWidget(self._selected_area_choice, current_layout_row, 0)
         current_layout_row += 1
-
         # set the layout
         groupBox = QGroupBox()
         groupBox.setLayout(group_layout)
@@ -216,6 +210,7 @@ class CommonOptionsFormWidget(QWidget):
                 self._communication_channels.selected_area_signal.emit(0)
             elif self._selected_area_choice.currentData() >= new_areas_counter:
                 self._communication_channels.selected_area_signal.emit(new_areas_counter - 1)
+        self._communication_channels.refresh_display_signal.emit()
 
     def _update_selected_area(self, area_index):
         selected_monitored_area = None
@@ -250,6 +245,72 @@ class CommonOptionsFormWidget(QWidget):
         # set both the value in the controller and call the event handler in case it's not fired
         self._selected_area_choice.setCurrentIndex(0)
         self._update_selected_area(0)
+
+
+class ConfigDisplayWidget(QWidget):
+
+    def __init__(self, communication_channels, config):
+        super(ConfigDisplayWidget, self).__init__()
+        self._communication_channels = communication_channels
+        self._config = config
+        self._init_ui()
+        self._init_event_handlers()
+
+    def _init_ui(self):
+        layout = QVBoxLayout()
+
+        groupbox = QGroupBox("Monitored Areas Summary")
+        groupbox_layout = QVBoxLayout()
+        self._monitored_areas_summary = QPlainTextEdit()
+        self._monitored_areas_summary.setReadOnly(True)
+        groupbox_layout.addWidget(self._monitored_areas_summary)
+        groupbox.setLayout(groupbox_layout)
+
+        layout.addWidget(groupbox)
+        self.setLayout(layout)
+
+    def _init_event_handlers(self):
+        # update config
+        self._communication_channels.config_signal.connect(self._update_config_options)
+        self._communication_channels.refresh_display_signal.connect(self._refresh_display)
+
+    @pyqtSlot(ConfigOptions)
+    def _update_config_options(self, new_config):
+        self._config = new_config
+        self._refresh_display()
+
+    def _refresh_display(self):
+        buffer = 'Monitored areas #: ' + str(self._config.monitored_areas_count) + '\n'
+        for ma_index, ma in enumerate(self._config.get_monitored_areas()):
+            buffer += 'Area ' + str(ma_index + 1) + ':\n'
+            buffer += self._indent('Mask: ' + self._get_maskfile(ma) + '\n')
+            buffer += self._indent('Track type: ' + self._get_track_type_desc(ma) + '\n')
+            buffer += self._indent(
+                'Aggregation interval: %d %s\n'  % (ma.aggregation_interval, ma.aggregation_interval_units)
+            )
+        self._monitored_areas_summary.setPlainText(buffer)
+
+    def _indent(self, text):
+        return '  ' + text
+
+    def _get_maskfile(self, ma):
+        if ma.maskfile:
+            return os.path.basename(ma.maskfile)
+        else:
+            return '?????'
+
+    def _get_track_type_desc(self, ma):
+        if ma.track_flag:
+            if ma.track_type == 0:
+                return 'distance'
+            elif ma.track_type == 1:
+                return 'crossings'
+            elif ma.track_type == 2:
+                return 'position'
+            else:
+                raise ValueError('Invalid track type option: %d' % ma.track_type)
+        else:
+            return 'disabled'
 
 
 class MonitoredAreaFormWidget(QWidget):
