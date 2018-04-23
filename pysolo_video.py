@@ -38,8 +38,13 @@ class MonitoredArea():
         :param track_type: 
         :param sleep_deprivation_flag:
         :param fps: this values is the video acquisition rate and typically comes from the image source
-        :param aggregated_frames: 
-        :param tracking_data_buffer_size:
+        :param aggregated_frames: specify the aggregation interval in frames
+        :param aggregated_frames_size: if the aggregation interval is very large then the
+                                       this value specifies the number of frame buffers. Once the buffer
+                                       is full it aggregates the current buffered data without reseting
+                                       the frame index; frame index is reset only when aggregated_frames is reached
+        :param tracking_data_buffer_size: specifies how many output lines to buffer in memory before writing the
+                                          data to disk
         :param acq_time: 
         """
         self._track_type = track_type
@@ -222,10 +227,6 @@ class MonitoredArea():
         self._aggregated_frames_buffer_index -= nframes
 
     def update_frame_activity(self, frame_time):
-        self._aggregated_frames_fly_coord[:, self._aggregated_frames_buffer_index] = self._current_frame_fly_coord
-        self._aggregated_frames_buffer_index += 1
-        self._aggregated_frame_index += 1
-
         if self._aggregated_frame_index >= self._aggregated_frames:
             _logger.info('Aggregate data - frame time: %ds' % frame_time)
             # aggregate the current buffers
@@ -242,6 +243,10 @@ class MonitoredArea():
         elif self._aggregated_frames_buffer_index >= self._aggregated_frames_size:
             # the frame buffers reached the limit so aggregate the current buffers
             self.aggregate_activity(frame_time)
+        self._aggregated_frames_fly_coord[:, self._aggregated_frames_buffer_index] = self._current_frame_fly_coord
+        self._aggregated_frames_buffer_index += 1
+        self._aggregated_frame_index += 1
+
 
     def get_track_type_desc(self):
         if self._track_type == 0:
@@ -698,10 +703,13 @@ def estimate_background(image_source,
 def prepare_monitored_areas(image_source, config, results_suffix=''):
 
     def create_monitored_area(configured_area_index, configured_area):
+        aggregated_frames = configured_area.get_aggregation_interval_in_frames(image_source.get_fps())
+        aggregated_frames_size = aggregated_frames if aggregated_frames <= 600 else 600
         ma = MonitoredArea(track_type=configured_area.track_type,
                            sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
                            fps=image_source.get_fps(),
-                           aggregated_frames=configured_area.get_aggregation_interval_in_frames(image_source.get_fps()),
+                           aggregated_frames=aggregated_frames,
+                           aggregated_frames_size=aggregated_frames_size,
                            acq_time=config.acq_time,
                            extend=configured_area.extend_flag,
                            results_suffix=results_suffix)
