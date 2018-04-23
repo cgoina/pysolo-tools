@@ -363,9 +363,9 @@ class MonitoredArea():
                     y1 = fs[:self._aggregated_frames_buffer_index, 1]
 
                     if horizontal:
-                        crosses = (x < mx1) * (x1 > mx1) + (x > mx1) * (x1 < mx1)
+                        crosses = (x <= mx1) * (x1 > mx1) + (x > mx1) * (x1 <= mx1)
                     else:
-                        crosses = (y < my1) * (y1 > my1) + (y > my1) * (y1 < my1)
+                        crosses = (y <= my1) * (y1 > my1) + (y > my1) * (y1 <= my1)
                     # we sum nframes to eliminate duplication
                     values[roi_index] = crosses[:nframes].sum()
                 else:
