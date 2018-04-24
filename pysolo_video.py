@@ -118,9 +118,8 @@ class MonitoredArea():
         # Does a running average for the coordinates of the fly at each frame to _fly_coord_buffer
         # This way the shape of _fly_coord_buffer is always (n, (x,y)) and once a second we just have to add the (x,y)
         # values to _fly_period_end_coords, whose shape is (n, 60, (x,y))
-        self._current_frame_fly_coord[roi_index] = np.append(self._current_frame_fly_coord[roi_index], fly_coords,
-                                                             axis=0).reshape(-1, 2).mean(axis=0)
-        return fly_coords, distance
+        self._current_frame_fly_coord[roi_index] = fly_coords
+        return self._current_frame_fly_coord[roi_index], distance
 
     def _distance(self, p1, p2):
         """
