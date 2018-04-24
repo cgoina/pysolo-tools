@@ -118,7 +118,8 @@ class MonitoredArea():
         # Does a running average for the coordinates of the fly at each frame to _fly_coord_buffer
         # This way the shape of _fly_coord_buffer is always (n, (x,y)) and once a second we just have to add the (x,y)
         # values to _fly_period_end_coords, whose shape is (n, 60, (x,y))
-        self._current_frame_fly_coord[roi_index] = fly_coords
+        self._current_frame_fly_coord[roi_index] = np.append(self._current_frame_fly_coord[roi_index], fly_coords,
+                                                             axis=0).reshape(-1, 2).mean(axis=0)
         return fly_coords, distance
 
     def _distance(self, p1, p2):
@@ -368,9 +369,9 @@ class MonitoredArea():
                     y1 = fs[:self._aggregated_frames_buffer_index, 1]
 
                     if horizontal:
-                        crosses = (x <= mx1) * (x1 > mx1) + (x > mx1) * (x1 <= mx1)
+                        crosses = (x < mx1) * (x1 >= mx1) + (x > mx1) * (x1 <= mx1)
                     else:
-                        crosses = (y <= my1) * (y1 > my1) + (y > my1) * (y1 <= my1)
+                        crosses = (y < my1) * (y1 >= my1) + (y > my1) * (y1 <= my1)
                     # we sum nframes to eliminate duplication
                     values[roi_index] = crosses[:nframes].sum()
                 else:
@@ -700,14 +701,14 @@ def estimate_background(image_source,
     return background
 
 
-def prepare_monitored_areas(image_source, config, results_suffix=''):
+def prepare_monitored_areas(config, fps=1, results_suffix=''):
 
     def create_monitored_area(configured_area_index, configured_area):
-        aggregated_frames = configured_area.get_aggregation_interval_in_frames(image_source.get_fps())
+        aggregated_frames = configured_area.get_aggregation_interval_in_frames(fps)
         aggregated_frames_size = aggregated_frames if aggregated_frames <= 600 else 600
         ma = MonitoredArea(track_type=configured_area.track_type,
                            sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
-                           fps=image_source.get_fps(),
+                           fps=fps,
                            aggregated_frames=aggregated_frames,
                            aggregated_frames_size=aggregated_frames_size,
                            acq_time=config.acq_time,
@@ -715,11 +716,14 @@ def prepare_monitored_areas(image_source, config, results_suffix=''):
                            results_suffix=results_suffix)
         ma.set_roi_filter(configured_area.tracked_rois_filter)
         ma.load_rois(configured_area.maskfile)
+        ma_results_suffix = ma.get_results_suffix()
+        if ma_results_suffix:
+            ma_results_suffix = '-' + ma_results_suffix
         ma.set_output(
-            os.path.join(config.data_folder, 'Monitor%02d-%s-%s.txt' % (
+            os.path.join(config.data_folder, 'Monitor%02d-%s%s.txt' % (
                 configured_area_index + 1,
                 ma.get_track_type_desc(),
-                ma.get_results_suffix()))
+                ma_results_suffix))
         )
         return ma
 

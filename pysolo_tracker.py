@@ -93,7 +93,7 @@ def _run_tracker(config, start_pos_msecs, end_pos_msecs, gaussian_filter_size, g
     if not image_source.is_opened():
         _logger.error('Error opening %s' % config.source)
     else:
-        monitored_areas = prepare_monitored_areas(image_source, config, results_suffix=results_suffix)
+        monitored_areas = prepare_monitored_areas(config, fps=image_source.get_fps(), results_suffix=results_suffix)
         process_image_frames(image_source, monitored_areas,
                              gaussian_filter_size=(gaussian_filter_size, gaussian_filter_size),
                              gaussian_sigma=gaussian_filter_sigma,

@@ -6,7 +6,7 @@ import sys
 from argparse import ArgumentParser
 
 from pysolo_config import load_config
-from pysolo_video import (prepare_monitored_areas, estimate_background)
+from pysolo_video import (estimate_background, MovieFile)
 
 
 def main():
@@ -42,9 +42,10 @@ def main():
     errors |= set(config.validate_source())
 
     if len(errors) == 0:
-        image_source, _ = prepare_monitored_areas(config,
-                                                  start_frame_msecs=args.start_frame_pos * 1000,
-                                                  end_frame_msecs=args.end_frame_pos * 1000)
+        image_source = MovieFile(config.source,
+                                 start_msecs=args.start_frame_pos * 1000,
+                                 end_msecs=args.end_frame_pos * 1000,
+                                 resolution=config.image_size)
         if (image_source.is_opened()):
             background_image = estimate_background(image_source,
                                                    gaussian_filter_size=(args.gaussian_filter_size, args.gaussian_filter_size),
