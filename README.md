@@ -9,6 +9,11 @@ conda install pyqt
 pip install multiprocess
 ```
 
+On Scientific Linux to install miniconda use:
+```
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh | sh
+```
+
 ### Running the application
 Before running the application the log directory must exist - python logger doesn't create
 directories.
