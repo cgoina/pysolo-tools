@@ -710,16 +710,16 @@ def prepare_monitored_areas(config, fps=1, results_suffix=''):
                            fps=fps,
                            aggregated_frames=aggregated_frames,
                            aggregated_frames_size=aggregated_frames_size,
-                           acq_time=config.acq_time,
+                           acq_time=config.get_acq_time(),
                            extend=configured_area.extend_flag,
                            results_suffix=results_suffix)
         ma.set_roi_filter(configured_area.tracked_rois_filter)
-        ma.load_rois(configured_area.maskfile)
+        ma.load_rois(configured_area.get_maskfile())
         ma_results_suffix = ma.get_results_suffix()
         if ma_results_suffix:
             ma_results_suffix = '-' + ma_results_suffix
         ma.set_output(
-            os.path.join(config.data_folder, 'Monitor%02d-%s%s.txt' % (
+            os.path.join(config.get_data_folder(), 'Monitor%02d-%s%s.txt' % (
                 configured_area_index + 1,
                 ma.get_track_type_desc(),
                 ma_results_suffix))

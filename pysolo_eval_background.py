@@ -42,10 +42,10 @@ def main():
     errors |= set(config.validate_source())
 
     if len(errors) == 0:
-        image_source = MovieFile(config.source,
+        image_source = MovieFile(config.get_source(),
                                  start_msecs=args.start_frame_pos * 1000,
                                  end_msecs=args.end_frame_pos * 1000,
-                                 resolution=config.image_size)
+                                 resolution=config.get_image_size())
         if (image_source.is_opened()):
             background_image = estimate_background(image_source,
                                                    gaussian_filter_size=(args.gaussian_filter_size, args.gaussian_filter_size),
@@ -53,7 +53,7 @@ def main():
             cv2.imwrite(args.background_image_file, background_image)
             image_source.close()
         else:
-            _logger.error('Error opening %s' % config.source)
+            _logger.error('Error opening %s' % config.get_source())
     else:
         _logger.error('Config load error: %r' % errors)
 

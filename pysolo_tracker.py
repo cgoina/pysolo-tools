@@ -52,12 +52,12 @@ def main():
 
     if len(errors) == 0:
         if args.nprocesses > 1:
-            source = MovieFile(config.source,
+            source = MovieFile(config.get_source(),
                                      start_msecs=args.start_frame_pos * 1000,
                                      end_msecs=args.end_frame_pos * 1000,
-                                     resolution=config.image_size)
+                                     resolution=config.get_image_size())
             if not source.is_opened():
-                _logger.error('Error opening %s' % config.source)
+                _logger.error('Error opening %s' % config.get_source())
                 return
             start_frame_pos = int(source.get_start_time_in_seconds())
             end_frame_pos = int(source.get_end_time_in_seconds())
@@ -86,12 +86,12 @@ def _run_tracker(config, start_pos_msecs, end_pos_msecs, gaussian_filter_size, g
                  results_suffix=''):
     _logger.info('Run tracker for frames between %s' % (
         results_suffix if results_suffix else _create_results_suffix(start_pos_msecs / 1000, end_pos_msecs / 1000)))
-    image_source = MovieFile(config.source,
+    image_source = MovieFile(config.get_source(),
                              start_msecs=start_pos_msecs,
                              end_msecs=end_pos_msecs,
-                             resolution=config.image_size)
+                             resolution=config.get_image_size())
     if not image_source.is_opened():
-        _logger.error('Error opening %s' % config.source)
+        _logger.error('Error opening %s' % config.get_source())
     else:
         monitored_areas = prepare_monitored_areas(config, fps=image_source.get_fps(), results_suffix=results_suffix)
         process_image_frames(image_source, monitored_areas,

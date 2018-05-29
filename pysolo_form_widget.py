@@ -144,12 +144,12 @@ class CommonOptionsFormWidget(QWidget):
                 QMessageBox.critical(self, 'Movie file error', 'Error opening %s' % filename)
 
         if movie_file is not None and movie_file.is_opened():
-            self._config.source = filename
+            self._config.set_source(filename)
             movie_file.set_resolution(self._config.get_image_width(), self._config.get_image_height())
             self._communication_channels.video_loaded_signal.emit(movie_file)
             return movie_file
         else:
-            self._config.source = None
+            self._config.set_source(None)
             self._source_filename_txt.setText('')
             self._communication_channels.clear_video_signal.emit()
             return None
@@ -169,10 +169,10 @@ class CommonOptionsFormWidget(QWidget):
     def _update_results_dir(self, results_dir_name):
         if results_dir_name:
             self._results_dir_txt.setText(results_dir_name)
-            self._config.data_folder = results_dir_name
+            self._config.set_data_folder(results_dir_name)
         else:
             self._results_dir_txt.setText('')
-            self._config.data_folder = None
+            self._config.set_data_folder(None)
 
     def _update_image_width(self, val):
         self._config.set_image_width(val)
@@ -224,7 +224,7 @@ class CommonOptionsFormWidget(QWidget):
     def _update_config_options(self, new_config):
         self._config = new_config
         # update the video source
-        self._update_source_filename(self._config.source)
+        self._update_source_filename(self._config.get_source())
         # update acquisition time
         acq_time_as_str = self._config.get_acq_time_as_str()
         if acq_time_as_str:
@@ -232,14 +232,14 @@ class CommonOptionsFormWidget(QWidget):
         else:
             self._update_acq_time(QDateTime.currentDateTime())
         # update the results folder
-        self._update_results_dir(self._config.data_folder)
+        self._update_results_dir(self._config.get_data_folder())
         # update the size
         self._update_image_width(self._config.get_image_width())
         self._update_image_height(self._config.get_image_height())
         # update the number of monitored areas
         # set both the value in the controller and call the event handler in case it's not fired
-        self._n_monitored_areas_box.setValue(self._config.monitored_areas_count)
-        self._update_number_of_areas(self._config.monitored_areas_count)
+        self._n_monitored_areas_box.setValue(self._config.get_monitored_areas_count())
+        self._update_number_of_areas(self._config.get_monitored_areas_count())
         # update selected area
         # set both the value in the controller and call the event handler in case it's not fired
         self._selected_area_choice.setCurrentIndex(0)
@@ -290,8 +290,8 @@ class ConfigDisplayWidget(QWidget):
         return '    ' + text
 
     def _get_maskfile(self, ma):
-        if ma.maskfile:
-            return os.path.basename(ma.maskfile)
+        if ma.get_maskfile():
+            return os.path.basename(ma.get_maskfile())
         else:
             return '?????'
 
@@ -421,15 +421,15 @@ class MonitoredAreaFormWidget(QWidget):
 
     def _update_mask_filename(self, filename):
         if filename:
-            self._monitored_area.maskfile = filename
+            self._monitored_area.set_maskfile(filename)
             self._mask_filename_txt.setText(filename)
         else:
-            self._monitored_area.maskfile = None
+            self._monitored_area.set_maskfile(None)
             self._mask_filename_txt.setText('')
 
     def _refresh_mask(self):
-        if self._monitored_area.maskfile:
-            self._communication_channels.maskfile_signal.emit(self._monitored_area.maskfile)
+        if self._monitored_area.get_maskfile():
+            self._communication_channels.maskfile_signal.emit(self._monitored_area.get_maskfile())
         else:
             self._communication_channels.maskfile_signal.emit('')
         self._communication_channels.refresh_display_signal.emit()
@@ -500,7 +500,7 @@ class MonitoredAreaFormWidget(QWidget):
     def _update_monitored_area(self, ma):
         self._monitored_area = ma
         # update mask filename control
-        self._update_mask_filename(self._monitored_area.maskfile)
+        self._update_mask_filename(self._monitored_area.get_maskfile())
         self._update_track_type(self._monitored_area.track_type)
         self._update_track_flag(Qt.Checked if self._monitored_area.track_flag else Qt.Unchecked)
         self._update_sleep_deprivation_flag(Qt.Checked if self._monitored_area.sleep_deprived_flag else Qt.Unchecked)
@@ -675,13 +675,13 @@ class TrackerWidget(QWidget):
         def process_frames(tracker_status):
             update_frame_image(0, [], force_update=True)
 
-            image_source = MovieFile(self._config.source,
+            image_source = MovieFile(self._config.get_source(),
                                      start_msecs=self._start_frame_msecs,
                                      end_msecs=self._end_frame_msecs,
-                                     resolution=self._config.image_size)
+                                     resolution=self._config.get_image_size())
 
             if not image_source.is_opened():
-                QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.source)
+                QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.get_source())
             else:
                 monitored_areas = prepare_monitored_areas(self._config, fps=image_source.get_fps())
                 process_image_frames(image_source, monitored_areas,
