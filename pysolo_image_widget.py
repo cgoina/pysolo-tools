@@ -126,7 +126,7 @@ class ImageWidget(QWidget):
         color_swapped_image = cv2.resize(color_swapped_image,
                                          (int(color_swapped_image.shape[1] * horz_scalef * self._ratio),
                                           int(color_swapped_image.shape[0] * vert_scalef * self._ratio / image_ratio)),
-                                         interpolation=cv2.INTER_LINEAR_EXACT)
+                                         interpolation=cv2.INTER_AREA)
         image = QImage(color_swapped_image,
                              color_swapped_image.shape[1],
                              color_swapped_image.shape[0],
