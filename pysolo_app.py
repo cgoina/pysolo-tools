@@ -21,7 +21,6 @@ class PySoloMainAppWindow(QMainWindow):
     def __init__(self, parent=None):
         super(PySoloMainAppWindow, self).__init__(parent)
         self._communication_channels = WidgetCommunicationChannels()
-        self._config_filename = None
         self._config = ConfigOptions()
         self._init_ui()
 
@@ -105,8 +104,8 @@ class PySoloMainAppWindow(QMainWindow):
         if config_filename:
             config, errors = load_config(config_filename)
             if not errors:
-                self._config_filename = config_filename
                 self._config = config
+                self._config.set_config_filename(config_filename)
                 self._communication_channels.config_signal.emit(self._config)
             else:
                 self._clear_config()
@@ -115,13 +114,13 @@ class PySoloMainAppWindow(QMainWindow):
         self._update_status()
 
     def _update_status(self):
-        if self._config_filename:
-            self.statusBar().showMessage('Config file: %s' % self._config_filename)
+        if self._config.get_config_filename():
+            self.statusBar().showMessage('Config file: %s' % self._config.get_config_filename())
         else:
             self.statusBar().showMessage('No config file')
 
     def _save_current_config(self):
-        self._save_config(self._config_filename)
+        self._save_config(self._config.get_config_filename())
 
     def _save_config(self, config_file=None):
         if not config_file:
@@ -137,8 +136,9 @@ class PySoloMainAppWindow(QMainWindow):
                 config_file = config_file + '.cfg'
             errors = save_config(self._config, config_file)
             if not errors:
-                self._config_filename = config_file
+                self._config.set_config_filename (config_file)
             else:
+                self._config.set_config_filename(None) # reset any config file that might have been set
                 self._display_errors('Config save errors', errors)
 
         self._update_status()
@@ -148,7 +148,6 @@ class PySoloMainAppWindow(QMainWindow):
 
     def _clear_config(self):
         self._config = ConfigOptions()
-        self._config_filename = None
         self._communication_channels.config_signal.emit(self._config)
         self._update_status()
 

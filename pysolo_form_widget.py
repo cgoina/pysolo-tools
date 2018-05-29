@@ -5,8 +5,7 @@ from functools import partial
 from pathlib import Path
 
 import os
-from PyQt5.QtCore import pyqtSlot, Qt, QRegExp, QDateTime, QObject, QTimer, QTime, pyqtSignal, QRect
-from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtCore import pyqtSlot, Qt, QDateTime, QObject, QTimer, QTime, pyqtSignal, QRect
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox, QTextEdit)
@@ -698,6 +697,8 @@ class TrackerWidget(QWidget):
         config_errors = self._config.validate()
         if self._gaussian_kernel_size != 0 and self._gaussian_kernel_size % 2 == 0:
             config_errors.append('Gaussian kernel must be odd or 0 if not needed')
+        if self._config.get_config_filename() is None:
+            config_errors.append('You must save the current configuration before starting the analysis')
 
         if len(config_errors) == 0:
             tracker_status = TrackerStatus(self._communication_channels, True)

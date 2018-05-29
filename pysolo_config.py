@@ -16,6 +16,13 @@ class ConfigOptions:
         self.image_size = None
         self.monitored_areas_count = 0
         self._monitored_areas = []
+        self._config_filename = None
+
+    def get_config_filename(self):
+        return self._config_filename
+
+    def set_config_filename(self, config_filename):
+        self._config_filename = config_filename
 
     def get_acq_time_as_str(self):
         if self.acq_time:
