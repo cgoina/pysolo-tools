@@ -13,7 +13,7 @@ from pysolo_video import MovieFile, MonitoredArea
 
 class ImageWidget(QWidget):
 
-    def __init__(self, communication_channels, image_width=640, image_height=480):
+    def __init__(self, communication_channels, image_width=640, image_height=640):
         super(ImageWidget, self).__init__()
         self._communication_channels = communication_channels
         self._image_width = image_width
@@ -120,15 +120,16 @@ class ImageWidget(QWidget):
 
     def _update_image_pixels(self, image):
         color_swapped_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        scalef = self._image_height / image.shape[1]
-        image_ratio = image.shape[0] / image.shape[1]
+        vert_scalef = self._image_height / image.shape[0]
+        horz_scalef = self._image_width / image.shape[1]
+        image_ratio = image.shape[1] / image.shape[0]
         color_swapped_image = cv2.resize(color_swapped_image,
-                                         (int(color_swapped_image.shape[0] * scalef * self._ratio),
-                                          int(color_swapped_image.shape[1] * scalef * self._ratio / image_ratio)),
-                                         interpolation=cv2.INTER_AREA)
+                                         (int(color_swapped_image.shape[1] * horz_scalef * self._ratio),
+                                          int(color_swapped_image.shape[0] * vert_scalef * self._ratio / image_ratio)),
+                                         interpolation=cv2.INTER_LINEAR_EXACT)
         image = QImage(color_swapped_image,
-                             color_swapped_image.shape[0],
                              color_swapped_image.shape[1],
+                             color_swapped_image.shape[0],
                              QImage.Format_RGB888)
         self._video_frame.setPixmap(QPixmap.fromImage(image))
 
