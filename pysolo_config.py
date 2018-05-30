@@ -30,15 +30,17 @@ class ConfigOptions:
         return self._source
 
     def set_source(self, source):
-        self.set_changed()
-        self._source = source
+        if source != self._source:
+            self.set_changed()
+            self._source = source
 
     def get_source_background_image(self):
         return self._source_background_image
 
     def set_source_background_image(self, source_background_image):
-        self.set_changed()
-        self._source_background_image = source_background_image
+        if source_background_image != self._source_background_image:
+            self.set_changed()
+            self._source_background_image = source_background_image
 
     def get_source_background_image_as_display_str(self):
         return "None" if self.get_source_background_image() is None else self.get_source_background_image()
@@ -47,8 +49,9 @@ class ConfigOptions:
         return self._acq_time
 
     def set_acq_time(self, acq_time):
-        self.set_changed()
-        self._acq_time = acq_time
+        if acq_time != self._acq_time:
+            self.set_changed()
+            self._acq_time = acq_time
 
     def get_acq_time_as_str(self):
         if self.get_acq_time():
@@ -69,8 +72,9 @@ class ConfigOptions:
         return self._data_folder
 
     def set_data_folder(self, data_folder):
-        self.set_changed()
-        self._data_folder = data_folder
+        if data_folder != self._data_folder:
+            self.set_changed()
+            self._data_folder = data_folder
 
     def get_image_width(self):
         if self.get_image_size() is None:
@@ -100,8 +104,9 @@ class ConfigOptions:
         return self._image_size
 
     def set_image_size(self, image_size):
-        self.set_changed()
-        self._image_size = image_size
+        if image_size != self._image_size:
+            self.set_changed()
+            self._image_size = image_size
 
     def get_monitored_area(self, monitored_area_index):
         """
@@ -165,9 +170,9 @@ class ConfigOptions:
             ma.reset_changed()
 
     def has_changed(self):
-        return self._changed_flag or reduce(lambda x, y: x or y, [ma.has_changed for ma in self.get_monitored_areas()])
+        return self._changed_flag or reduce(lambda x, y: x or y, [ma.has_changed() for ma in self.get_monitored_areas()])
 
-    def __as_dict(self):
+    def as_dict(self):
         config_sections = [
             (
                 'Options',
@@ -182,7 +187,7 @@ class ConfigOptions:
             )
         ]
         for i in range(0, self.get_monitored_areas_count()):
-            config_sections.append(('Monitor%d' % (i + 1), self.get_monitored_area(i).__asdict()))
+            config_sections.append(('Monitor%d' % (i + 1), self.get_monitored_area(i).as_dict()))
 
         return OrderedDict(config_sections)
 
@@ -204,44 +209,50 @@ class MonitoredAreaOptions:
         return self._maskfile
 
     def set_maskfile(self, maskfile):
-        self.set_changed()
-        self._maskfile = maskfile
+        if maskfile != self._maskfile:
+            self.set_changed()
+            self._maskfile = maskfile
 
     def get_track_flag(self):
         self.set_changed()
         return self._track_flag
 
     def set_track_flag(self, track_flag):
-        self.set_changed()
-        self._track_flag = track_flag
+        if track_flag != self._track_flag:
+            self.set_changed()
+            self._track_flag = track_flag
 
     def get_track_type(self):
         return self._track_type
 
     def set_track_type(self, track_type):
-        self.set_changed()
-        self._track_type = track_type
+        if track_type != self._track_type:
+            self.set_changed()
+            self._track_type = track_type
 
     def get_sleep_deprived_flag(self):
         return self._sleep_deprived_flag
 
     def set_sleep_deprived_flag(self, sleep_deprived_flag):
-        self.set_changed()
-        self._sleep_deprived_flag = sleep_deprived_flag
+        if sleep_deprived_flag != self._sleep_deprived_flag:
+            self.set_changed()
+            self._sleep_deprived_flag = sleep_deprived_flag
 
     def get_aggregation_interval(self):
         return self._aggregation_interval
 
     def set_aggregation_interval(self, aggregation_interval):
-        self.set_changed()
-        self._aggregation_interval = aggregation_interval
+        if aggregation_interval != self._aggregation_interval:
+            self.set_changed()
+            self._aggregation_interval = aggregation_interval
 
     def get_aggregation_interval_units(self):
         return self._aggregation_interval_units
 
     def set_aggregation_interval_units(self, aggregation_interval_units):
-        self.set_changed()
-        self._aggregation_interval_units = aggregation_interval_units
+        if aggregation_interval_units != self._aggregation_interval_units:
+            self.set_changed()
+            self._aggregation_interval_units = aggregation_interval_units
 
     def get_aggregation_interval_in_frames(self, fps):
         """
@@ -262,8 +273,9 @@ class MonitoredAreaOptions:
         return self._tracked_rois_filter
 
     def set_tracked_rois_filter(self, tracked_rois_filter):
-        self.set_changed()
-        self._tracked_rois_filter = tracked_rois_filter
+        if tracked_rois_filter != self._tracked_rois_filter:
+            self.set_changed()
+            self._tracked_rois_filter = tracked_rois_filter
 
     def get_rois_filter_as_str(self):
         if self.get_tracked_rois_filter() is None:
@@ -282,8 +294,9 @@ class MonitoredAreaOptions:
         return self._extend_flag
 
     def set_extend_flag(self, extend_flag):
-        self.set_changed()
-        self._extend_flag = extend_flag
+        if extend_flag != self._extend_flag:
+            self.set_changed()
+            self._extend_flag = extend_flag
 
     def validate(self):
         errors = []
@@ -310,7 +323,7 @@ class MonitoredAreaOptions:
     def has_changed(self):
         return self._changed_flag
 
-    def __as_dict(self):
+    def as_dict(self):
         return OrderedDict([
             ('maskfile', str(self.get_maskfile())),
             ('track', str(self.get_track_flag())),
@@ -377,6 +390,7 @@ def load_config(filename):
         monitored_area.set_aggregation_interval_units(get_value(monitored_area_section, 'aggregation_interval_units',
                                                                 default_value='frames'))
 
+    config.reset_changed()
     return config, set(errors)
 
 
@@ -406,7 +420,8 @@ def save_config(config, filename):
     config_parser = configparser.ConfigParser()
     errors = config.validate()
     if not errors:
-        config_parser.read_dict(config.__as_dict())
+        config_parser.read_dict(config.as_dict())
         with open(filename, 'w') as configfile:
             config_parser.write(configfile)
+        config.reset_changed()
     return errors

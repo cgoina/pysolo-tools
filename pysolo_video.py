@@ -705,15 +705,15 @@ def prepare_monitored_areas(config, fps=1, results_suffix=''):
     def create_monitored_area(configured_area_index, configured_area):
         aggregated_frames = configured_area.get_aggregation_interval_in_frames(fps)
         aggregated_frames_size = aggregated_frames if aggregated_frames <= 600 else 600
-        ma = MonitoredArea(track_type=configured_area.track_type,
-                           sleep_deprivation_flag=1 if configured_area.sleep_deprived_flag else 0,
+        ma = MonitoredArea(track_type=configured_area.get_track_type(),
+                           sleep_deprivation_flag=1 if configured_area.get_sleep_deprived_flag() else 0,
                            fps=fps,
                            aggregated_frames=aggregated_frames,
                            aggregated_frames_size=aggregated_frames_size,
                            acq_time=config.get_acq_time(),
-                           extend=configured_area.extend_flag,
+                           extend=configured_area.get_extend_flag(),
                            results_suffix=results_suffix)
-        ma.set_roi_filter(configured_area.tracked_rois_filter)
+        ma.set_roi_filter(configured_area.get_tracked_rois_filter())
         ma.load_rois(configured_area.get_maskfile())
         ma_results_suffix = ma.get_results_suffix()
         if ma_results_suffix:
@@ -728,7 +728,7 @@ def prepare_monitored_areas(config, fps=1, results_suffix=''):
 
     return [create_monitored_area(area_index, configured_area)
             for area_index, configured_area in enumerate(config.get_monitored_areas())
-            if configured_area.track_flag]
+            if configured_area.get_track_flag()]
 
 
 def process_image_frames(image_source, monitored_areas,

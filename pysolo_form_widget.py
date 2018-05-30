@@ -68,7 +68,8 @@ class CommonOptionsFormWidget(QWidget):
         self._height_box.setRange(0, 100000)
         group_layout.addWidget(self._width_box, current_layout_row, 0, 1, 1)
         group_layout.addWidget(self._height_box, current_layout_row, 1, 1, 1)
-        group_layout.addWidget(ConfigDisplayWidget(self._communication_channels, self._config), current_layout_row, 2, 6, 2)
+        group_layout.addWidget(ConfigDisplayWidget(self._communication_channels, self._config), current_layout_row, 2,
+                               6, 2)
         current_layout_row += 1
 
         # number of monitored regions widgets
@@ -281,7 +282,7 @@ class ConfigDisplayWidget(QWidget):
             buffer += self._indent('Mask: ' + self._get_maskfile(ma) + '\n')
             buffer += self._indent('Track type: ' + self._get_track_type_desc(ma) + '\n')
             buffer += self._indent(
-                'Aggregation interval: %d %s\n'  % (ma.aggregation_interval, ma.aggregation_interval_units)
+                'Aggregation interval: %d %s\n' % (ma.get_aggregation_interval(), ma.get_aggregation_interval_units())
             )
             buffer += self._indent('ROI filter: ' + ma.get_rois_filter_as_str() + '\n')
         self._monitored_areas_summary.setPlainText(buffer)
@@ -296,15 +297,15 @@ class ConfigDisplayWidget(QWidget):
             return '?????'
 
     def _get_track_type_desc(self, ma):
-        if ma.track_flag:
-            if ma.track_type == 0:
+        if ma.get_track_flag():
+            if ma.get_track_type() == 0:
                 return 'distance'
-            elif ma.track_type == 1:
+            elif ma.get_track_type() == 1:
                 return 'crossings'
-            elif ma.track_type == 2:
+            elif ma.get_track_type() == 2:
                 return 'position'
             else:
-                raise ValueError('Invalid track type option: %d' % ma.track_type)
+                raise ValueError('Invalid track type option: %d' % ma.get_track_type())
         else:
             return 'disabled'
 
@@ -435,49 +436,52 @@ class MonitoredAreaFormWidget(QWidget):
         self._communication_channels.refresh_display_signal.emit()
 
     def _update_track_type(self, index):
-        self._monitored_area.track_type = index
+        self._monitored_area.set_track_type(index)
         self._track_type_choice.setCurrentIndex(index)
         self._communication_channels.refresh_display_signal.emit()
 
     def _update_track_flag(self, val):
         self._track_check.setCheckState(val)
         if val == Qt.Checked:
-            self._monitored_area.track_flag = True
+            self._monitored_area.set_track_flag(True)
             self._track_type_choice.setDisabled(False)
         else:
-            self._monitored_area.track_flag = False
+            self._monitored_area.set_track_flag(False)
             self._track_type_choice.setDisabled(True)
         self._communication_channels.refresh_display_signal.emit()
 
     def _update_sleep_deprivation_flag(self, val):
         self._sleep_deprivation_check.setCheckState(val)
-        self._monitored_area.sleep_deprived_flag = True if val == Qt.Checked else False
+        if val == Qt.Checked:
+            self._monitored_area.set_sleep_deprived_flag(True)
+        else:
+            self._monitored_area.set_sleep_deprived_flag(False)
         self._communication_channels.refresh_display_signal.emit()
 
     def _update_aggregation_interval(self, val):
-        self._monitored_area.aggregation_interval = val
+        self._monitored_area.set_aggregation_interval(val)
         self._aggregation_interval_box.setValue(val)
         self._communication_channels.refresh_display_signal.emit()
 
     def _update_aggregation_interval_units(self, index, units=None):
         if index == 0:
-            self._monitored_area.aggregation_interval_units = 'frames'
+            self._monitored_area.set_aggregation_interval_units('frames')
         elif index == 1:
-            self._monitored_area.aggregation_interval_units = 'sec'
+            self._monitored_area.set_aggregation_interval_units('sec')
         elif index == 2:
-            self._monitored_area.aggregation_interval_units = 'min'
+            self._monitored_area.set_aggregation_interval_units('min')
         elif units is None:
             index = 0
-            self._monitored_area.aggregation_interval_units = 'frames'
+            self._monitored_area.set_aggregation_interval_units('frames')
         elif units == 'sec':
             index = 1
-            self._monitored_area.aggregation_interval_units = 'sec'
+            self._monitored_area.set_aggregation_interval_units('sec')
         elif units == 'min':
             index = 2
-            self._monitored_area.aggregation_interval_units = 'min'
+            self._monitored_area.set_aggregation_interval_units('min')
         else:
             index = 0
-            self._monitored_area.aggregation_interval_units = 'frames'
+            self._monitored_area.set_aggregation_interval_units('frames')
         self._aggregation_interval_units_choice.setCurrentIndex(index)
         self._communication_channels.refresh_display_signal.emit()
 
@@ -501,11 +505,12 @@ class MonitoredAreaFormWidget(QWidget):
         self._monitored_area = ma
         # update mask filename control
         self._update_mask_filename(self._monitored_area.get_maskfile())
-        self._update_track_type(self._monitored_area.track_type)
-        self._update_track_flag(Qt.Checked if self._monitored_area.track_flag else Qt.Unchecked)
-        self._update_sleep_deprivation_flag(Qt.Checked if self._monitored_area.sleep_deprived_flag else Qt.Unchecked)
-        self._update_aggregation_interval(self._monitored_area.aggregation_interval)
-        self._update_aggregation_interval_units(-1, units=self._monitored_area.aggregation_interval_units)
+        self._update_track_type(self._monitored_area.get_track_type())
+        self._update_track_flag(Qt.Checked if self._monitored_area.get_track_flag() else Qt.Unchecked)
+        self._update_sleep_deprivation_flag(
+            Qt.Checked if self._monitored_area.get_sleep_deprived_flag() else Qt.Unchecked)
+        self._update_aggregation_interval(self._monitored_area.get_aggregation_interval())
+        self._update_aggregation_interval_units(-1, units=self._monitored_area.get_aggregation_interval_units())
         self._update_roi_filter(self._monitored_area.get_rois_filter_as_str())
         self._communication_channels.refresh_display_signal.emit()
 
@@ -697,14 +702,29 @@ class TrackerWidget(QWidget):
         config_errors = self._config.validate()
         if self._gaussian_kernel_size != 0 and self._gaussian_kernel_size % 2 == 0:
             config_errors.append('Gaussian kernel must be odd or 0 if not needed')
-        if self._config.get_config_filename() is None:
+        if len(config_errors) == 0 and self._config.get_config_filename() is None:
+            # no errors but the config file has not been saved
             config_errors.append('You must save the current configuration before starting the analysis')
 
         if len(config_errors) == 0:
-            tracker_status = TrackerStatus(self._communication_channels, True)
-            t = threading.Thread(target=process_frames, args=(tracker_status,))
-            t.setDaemon(True)
-            t.start()
+            ok_to_start = True
+
+            if self._config.has_changed():
+                answer = QMessageBox.question(self,
+                                              'Unsaved changes',
+                                              'You have unsaved changes - Do you want to continue?',
+                                              QMessageBox.Yes, QMessageBox.No)
+                if answer == QMessageBox.No:
+                    ok_to_start = False
+
+            if ok_to_start:
+                tracker_status = TrackerStatus(self._communication_channels, True)
+                t = threading.Thread(target=process_frames, args=(tracker_status,))
+                t.setDaemon(True)
+                t.start()
+            else:
+                self._stop_tracker()
+
         else:
             self._stop_tracker()
             QMessageBox.critical(self, 'Configuration errors', '\n'.join(config_errors))
