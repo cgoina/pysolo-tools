@@ -214,7 +214,6 @@ class MonitoredAreaOptions:
             self._maskfile = maskfile
 
     def get_track_flag(self):
-        self.set_changed()
         return self._track_flag
 
     def set_track_flag(self, track_flag):
