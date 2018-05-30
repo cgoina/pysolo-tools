@@ -126,12 +126,13 @@ class ConfigOptions:
         return self._monitored_areas_count
 
     def set_monitored_areas_count(self, monitored_areas_count):
-        self._monitored_areas_count = monitored_areas_count
-        if self.get_monitored_areas_count() >= 0:
-            if len(self._monitored_areas) < self.get_monitored_areas_count():
-                self.set_changed()
-                for i in range(0, self.get_monitored_areas_count() - len(self._monitored_areas)):
-                    self._monitored_areas.append(MonitoredAreaOptions())
+        if monitored_areas_count != self._monitored_areas_count:
+            self.set_changed()
+            self._monitored_areas_count = monitored_areas_count
+            if self.get_monitored_areas_count() >= 0:
+                if len(self._monitored_areas) < self.get_monitored_areas_count():
+                    for i in range(0, self.get_monitored_areas_count() - len(self._monitored_areas)):
+                        self._monitored_areas.append(MonitoredAreaOptions())
 
     def validate(self):
         errors = self.validate_source()
