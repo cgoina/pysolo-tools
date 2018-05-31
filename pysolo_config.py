@@ -369,10 +369,12 @@ def load_config(filename):
         monitored_area.set_sleep_deprived_flag(get_value(monitored_area_section, 'issdmonitor', default_value=False))
         monitored_area.set_extend_flag(get_value(monitored_area_section, 'extend', default_value=True, required=False))
         tracked_rois_filter = get_value(monitored_area_section, 'tracked_rois_filter', required=False)
+        # the displayed and saved rois filter are 1-based but the in-memory index should be 0-based
+        # so we need to subtract 1
         if type(tracked_rois_filter) is tuple:
-            monitored_area.set_tracked_rois_filter(list(tracked_rois_filter))
+            monitored_area.set_tracked_rois_filter([roi - 1 for roi in tracked_rois_filter])
         elif type(tracked_rois_filter) is int:
-            monitored_area.set_tracked_rois_filter([tracked_rois_filter])
+            monitored_area.set_tracked_rois_filter([tracked_rois_filter - 1])
         elif tracked_rois_filter is not None:
             errors.append('Cannot handle tracked ROI filter: {arg}'.format(arg=tracked_rois_filter))
         monitored_area.set_aggregation_interval(get_value(monitored_area_section, 'aggregation_interval',
