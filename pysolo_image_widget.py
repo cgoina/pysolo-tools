@@ -158,7 +158,7 @@ class ImageWidget(QWidget):
             return  # do nothing
         roi_image = self._image_frame.copy()
         if monitored_area:
-            color = [255, 0, 0]
+            color = [0, 255, 100]
             for roi_index, roi in enumerate(monitored_area.ROIS):
                 if monitored_area.is_roi_trackable(roi_index):
                     roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
@@ -175,7 +175,7 @@ class ImageWidget(QWidget):
         if self._movie_file is None:
             return  # do nothing
         roi_image = self._image_frame.copy()
-        color = [255, 0, 0]
+        color = [0, 255, 100]
         for monitored_area in monitored_areas:
             for roi_index, roi in enumerate(monitored_area.ROIS):
                 if monitored_area.is_roi_trackable(roi_index):
@@ -195,7 +195,7 @@ class ImageWidget(QWidget):
         """
         if self._image_frame is not None:
             image_frame = self._image_frame
-            color = (255, 0, 0)
+            color = (255, 10, 0)
             width = 1
             line_type = cv2.LINE_AA
 
