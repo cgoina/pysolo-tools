@@ -88,7 +88,7 @@ class MonitoredArea():
         self._roi_filter = trackable_rois
 
     def is_roi_trackable(self, roi):
-        return self._roi_filter is None or roi in self._roi_filter
+        return self._roi_filter is None or self._roi_filter == [] or roi in self._roi_filter
 
     def set_output(self, filename, clear_if_exists=True):
         self._lineno = 0
