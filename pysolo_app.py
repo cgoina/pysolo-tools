@@ -96,6 +96,19 @@ class PySoloMainAppWindow(QMainWindow):
         self._communication_channels.refresh_mask_signal.emit()
 
     def _open_config(self):
+        not_ok_for_new_config = False
+        if self._config.has_changed():
+            answer = QMessageBox.question(self,
+                                          'Unsaved changes',
+                                          'You have unsaved changes - Do you want to continue?',
+                                          QMessageBox.Yes, QMessageBox.No)
+            if answer == QMessageBox.No:
+                not_ok_for_new_config = True
+
+        if not_ok_for_new_config:
+            # there are unsaved changes and the user doesn't want to continue
+            return
+
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
         config_filename, _ = QFileDialog.getOpenFileName(self, 'Select config file',
                                                          '',
