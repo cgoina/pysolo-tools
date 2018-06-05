@@ -141,10 +141,10 @@ def create_mask(n_rows, n_cols, mask_params):
         for row in range(0, n_rows):  # y-coordinates change through rows
             arena.add_roi(
                 (
-                    (int(ax), int(ay)),
-                    (int(bx), int(by)),
-                    (int(cx), int(cy)),
-                    (int(dx), int(dy))
+                    (ax, ay),
+                    (bx, by),
+                    (cx, cy),
+                    (dx, dy)
                 )
             )
             ay = by + y_sep  # move down in y direction to start next row
