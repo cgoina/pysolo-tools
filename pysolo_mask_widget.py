@@ -2,8 +2,8 @@
 import os
 from PyQt5.QtCore import QRegExp
 from PyQt5.QtGui import QRegExpValidator
-from PyQt5.QtWidgets import QPushButton, QLabel, QComboBox, QDialog, QGridLayout, QSpinBox, QLineEdit, QFileDialog, \
-    QCheckBox
+from PyQt5.QtWidgets import (QPushButton, QLabel, QComboBox, QDialog, QGridLayout, QSpinBox, QLineEdit,
+                             QFileDialog, QCheckBox)
 
 from pysolo_maskmaker import create_mask, get_mask_params, get_mask_params_from_rois
 from pysolo_video import MonitoredArea
