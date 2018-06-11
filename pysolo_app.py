@@ -163,6 +163,7 @@ class PySoloMainAppWindow(QMainWindow):
         self._config = ConfigOptions()
         self._communication_channels.config_signal.emit(self._config)
         self._update_status()
+        self._config.reset_changed()
 
 
 class WidgetCommunicationChannels(QObject):

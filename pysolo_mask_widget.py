@@ -32,6 +32,15 @@ class CreateMaskDlgWidget(QDialog):
         layout.addWidget(self._area_location_choice, current_widget_row, 3, 1, 3)
         current_widget_row += 1
 
+        crossline_lbl = QLabel('Cross line type')
+        self._crossline_choice = QComboBox()
+        self._crossline_choice.addItem('None', '')
+        self._crossline_choice.addItem('Horizontal', 'horizontal')
+        layout.addWidget(crossline_lbl, current_widget_row, 0, 1, 3)
+        layout.addWidget(self._crossline_choice, current_widget_row, 3, 1, 3)
+        current_widget_row += 1
+
+
         rows_lbl = QLabel('Rows')
         self._rows_box = QSpinBox()
         cols_lbl = QLabel('Cols')
@@ -122,6 +131,7 @@ class CreateMaskDlgWidget(QDialog):
         self._update_mask_params()
         self._area_location_choice.currentIndexChanged.connect(self._update_mask_params)
 
+        self._crossline_choice.currentTextChanged.connect(self._update_mask_overlay)
         self._rows_box.valueChanged.connect(self._update_mask_overlay)
         self._cols_box.valueChanged.connect(self._update_mask_overlay)
         self.x1_txt.textChanged.connect(self._update_mask_overlay)
