@@ -6,6 +6,7 @@ import sys
 from argparse import ArgumentParser
 
 from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
                              QFileDialog, QAction, QMessageBox)
 
@@ -50,7 +51,7 @@ class PySoloMainAppWindow(QMainWindow):
 
         exit_act = QAction('E&xit', self)
         exit_act.setShortcut('Ctrl+Q')
-        exit_act.triggered.connect(self.close)
+        exit_act.triggered.connect(self._quit)
 
         new_mask_act = QAction('New &mask', self)
         new_mask_act.triggered.connect(self._open_new_mask_dlg)
@@ -84,6 +85,23 @@ class PySoloMainAppWindow(QMainWindow):
     def _init_event_handlers(self):
         self._communication_channels.tracker_running_signal.connect(self._tracker_running_handler)
 
+    def closeEvent(self, event: QCloseEvent):
+        not_ok_to_quit = False
+        if self._config.has_changed():
+            answer = QMessageBox.question(self,
+                                          'Unsaved changes',
+                                          'You have unsaved changes - if you quit you will loose them. Do you still want to quit?',
+                                          QMessageBox.Yes, QMessageBox.No)
+            if answer == QMessageBox.No:
+                not_ok_to_quit = True
+
+        if not_ok_to_quit:
+            # there are unsaved changes and the user doesn't want to continue
+            event.ignore()
+        else:
+            # ok to quit
+            event.accept()
+
     def _tracker_running_handler(self, flag):
         self._load_config_act.setDisabled(flag)
         self._clear_config_act.setDisabled(flag)
@@ -91,6 +109,9 @@ class PySoloMainAppWindow(QMainWindow):
     def _open_new_mask_dlg(self):
         mask_editor = CreateMaskDlgWidget(self._communication_channels)
         mask_editor.exec_()
+
+    def _quit(self):
+        self.close()
 
     def _refresh_mask(self):
         self._communication_channels.refresh_mask_signal.emit()
@@ -195,9 +216,10 @@ def main():
     logging.config.fileConfig(args.log_config_file)
 
     app = QApplication(sys.argv)
-    config_app = PySoloMainAppWindow()
-    config_app.show()
-    app.exec_()
+    pysolo_app = PySoloMainAppWindow()
+    pysolo_app.show()
+    ret = app.exec_()
+    sys.exit(ret)
 
 
 if __name__ == '__main__':
