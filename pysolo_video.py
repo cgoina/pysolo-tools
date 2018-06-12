@@ -6,12 +6,19 @@ import os
 import pickle
 
 from datetime import datetime, timedelta
+from enum import Enum
 from functools import partial
 from multiprocessing.pool import ThreadPool
 from os.path import dirname, exists
 
 
 _logger = logging.getLogger('tracker')
+
+
+class TrackingType(Enum):
+    distance = 0
+    beam_crossings = 1
+    position = 2
 
 
 class MonitoredArea():
@@ -166,25 +173,32 @@ class MonitoredArea():
             [int(rx * scale[0]), int(ly * scale[1])]
         ]
 
-    def get_midline(self, roi, scale=(1, 1), conv=None):
+    def get_midline(self, roi, scale=(1, 1), conv=None, midline_type=None):
         """
         Return the position of each ROI's midline
         Will automatically determine the orientation of the vial
         """
         (x1, y1), (x2, y2) = self.roi_to_rect(roi)
-        horizontal = abs(x2 - x1) > abs(y2 - y1)
-        if horizontal:
-            xm = x1 + (x2 - x1) / 2
-            if conv:
-                return (conv(xm * scale[0]), conv(y1 * scale[1])),(conv(xm * scale[0]), conv(y2 * scale[1]))
-            else:
-                return (xm * scale[0], y1 * scale[1]), (xm * scale[0], y2 * scale[1])
+
+        if midline_type == CrossingBeamType.horizontal:
+            horizontal_beam = True
+        elif midline_type == CrossingBeamType.vertical:
+            horizontal_beam = False
         else:
+            horizontal_beam = abs(y2 - y1) >= abs(x2 - x1)
+
+        if horizontal_beam:
             ym = y1 + (y2 - y1) / 2
             if conv:
                 return (conv(x1 * scale[0]), conv(ym * scale[1])), (conv(x2 * scale[0]), conv(ym * scale[1]))
             else:
                 return (x1 * scale[0], ym * scale[1]), (x2 * scale[0], ym * scale[1])
+        else:
+            xm = x1 + (x2 - x1) / 2
+            if conv:
+                return (conv(xm * scale[0]), conv(y1 * scale[1])),(conv(xm * scale[0]), conv(y2 * scale[1]))
+            else:
+                return (xm * scale[0], y1 * scale[1]), (xm * scale[0], y2 * scale[1])
 
     def save_rois(self, filename):
         with open(filename, 'wb') as cf:
@@ -247,25 +261,27 @@ class MonitoredArea():
         self._aggregated_frames_buffer_index += 1
         self._aggregated_frame_index += 1
 
+    def get_track_type(self):
+        return self._track_type
 
     def get_track_type_desc(self):
-        if self._track_type == 0:
+        if self._track_type == TrackingType.distance.value:
             return 'distance'
-        elif self._track_type == 1:
+        elif self._track_type == TrackingType.beam_crossings.value:
             return 'crossings'
-        elif self._track_type == 2:
+        elif self._track_type == TrackingType.position.value:
             return 'position'
         else:
             raise ValueError('Invalid track type option: %d' % self._track_type)
 
     def aggregate_activity(self, frame_time):
-        if self._track_type == 0:
+        if self._track_type == TrackingType.distance.value:
             values, _ = self._calculate_distances()
             activity = DistanceSum(frame_time, values)
-        elif self._track_type == 1:
+        elif self._track_type == TrackingType.beam_crossings.value:
             values, _ = self._calculate_vbm()
             activity = VirtualBeamCrossings(frame_time, values)
-        elif self._track_type == 2:
+        elif self._track_type == TrackingType.position.value:
             values, count = self._calculate_position()
             activity = AveragePosition(frame_time, values, count)
         else:
@@ -358,7 +374,7 @@ class MonitoredArea():
             for fd, md in zip(self._aggregated_frames_fly_coord, self._relative_beams()):
                 if self.is_roi_trackable(roi_index):
                     (mx1, my1), (mx2, my2) = md
-                    horizontal = (mx1 == mx2)
+                    horizontal_beam = (my1 == my2)
 
                     fs = np.roll(fd, -1, 0)  # coordinates shifted to the following frame
 
@@ -367,10 +383,10 @@ class MonitoredArea():
                     x1 = fs[:self._aggregated_frames_buffer_index, 0]
                     y1 = fs[:self._aggregated_frames_buffer_index, 1]
 
-                    if horizontal:
-                        crosses = (x < mx1) * (x1 >= mx1) + (x > mx1) * (x1 <= mx1)
-                    else:
+                    if horizontal_beam:
                         crosses = (y < my1) * (y1 >= my1) + (y > my1) * (y1 <= my1)
+                    else:
+                        crosses = (x < mx1) * (x1 >= mx1) + (x > mx1) * (x1 <= mx1)
                     # we sum nframes to eliminate duplication
                     values[roi_index] = crosses[:nframes].sum()
                 else:
@@ -419,6 +435,18 @@ class MonitoredArea():
             self._shift_data_window(nframes)
 
         return values, nframes
+
+
+class CrossingBeamType(Enum):
+    no_crossing_beam = 0
+    horizontal = 1
+    vertical = 2
+    based_on_roi_coord = 3
+
+    @classmethod
+    def is_crossing_beam_needed(cls, track_type, beam_type):
+        return ((track_type == TrackingType.beam_crossings or track_type == TrackingType.beam_crossings.value) and
+                beam_type != cls.no_crossing_beam)
 
 
 class TrackingData():

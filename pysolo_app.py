@@ -13,7 +13,7 @@ from pysolo_config import load_config, ConfigOptions, save_config, MonitoredArea
 from pysolo_form_widget import FormWidget
 from pysolo_image_widget import ImageWidget
 from pysolo_mask_widget import CreateMaskDlgWidget
-from pysolo_video import MovieFile, MonitoredArea
+from pysolo_video import MovieFile, MonitoredArea, CrossingBeamType
 
 
 class PySoloMainAppWindow(QMainWindow):
@@ -173,9 +173,9 @@ class WidgetCommunicationChannels(QObject):
     config_signal = pyqtSignal(ConfigOptions)
     monitored_area_options_signal = pyqtSignal(MonitoredAreaOptions)
     refresh_mask_signal = pyqtSignal()
-    maskfile_signal = pyqtSignal(str)
-    monitored_area_rois_signal = pyqtSignal(MonitoredArea)
-    all_monitored_areas_rois_signal = pyqtSignal(list)
+    maskfile_signal = pyqtSignal(str, CrossingBeamType)
+    monitored_area_rois_signal = pyqtSignal(MonitoredArea, CrossingBeamType)
+    all_monitored_areas_rois_signal = pyqtSignal(list, CrossingBeamType)
     video_frame_pos_signal = pyqtSignal(float, str)
     video_image_resolution_signal = pyqtSignal(int, int)
     fly_coord_pos_signal = pyqtSignal(list)

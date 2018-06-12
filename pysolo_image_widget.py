@@ -8,7 +8,7 @@ from PyQt5.QtCore import pyqtSlot, Qt, QThread, QObject, pyqtSignal, QRect
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout)
 
-from pysolo_video import MovieFile, MonitoredArea
+from pysolo_video import MovieFile, MonitoredArea, CrossingBeamType
 
 
 class ImageWidget(QWidget):
@@ -143,17 +143,17 @@ class ImageWidget(QWidget):
             self._movie_file.set_resolution(width, height)
             self._image_scale = self._movie_file.get_scale()
 
-    @pyqtSlot(str)
-    def _load_and_display_rois(self, rois_mask_file):
+    @pyqtSlot(str, CrossingBeamType)
+    def _load_and_display_rois(self, rois_mask_file, crossing_line):
         if rois_mask_file and not self._show_rois:
             monitored_area = MonitoredArea()
             monitored_area.load_rois(rois_mask_file)
-            self._display_rois(monitored_area)
+            self._display_rois(monitored_area, crossing_line)
         else:
-            self._display_rois(None)
+            self._display_rois(None, None)
 
-    @pyqtSlot(MonitoredArea)
-    def _display_rois(self, monitored_area):
+    @pyqtSlot(MonitoredArea, CrossingBeamType)
+    def _display_rois(self, monitored_area, crossing_line):
         if self._movie_file is None:
             return  # do nothing
         roi_image = self._image_frame.copy()
@@ -163,15 +163,16 @@ class ImageWidget(QWidget):
                 if monitored_area.is_roi_trackable(roi_index):
                     roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
                     cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
-                    mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
-                    cv2.line(roi_image, mid1, mid2, color=color)
+                    if CrossingBeamType.is_crossing_beam_needed(monitored_area.get_track_type(), crossing_line):
+                        mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
+                        cv2.line(roi_image, mid1, mid2, color=color)
             self._show_rois = True
         else:
             self._show_rois = False
         self._update_image_pixels_async(roi_image)
 
-    @pyqtSlot(list)
-    def _display_all_monitored_areas_rois(self, monitored_areas):
+    @pyqtSlot(list, CrossingBeamType)
+    def _display_all_monitored_areas_rois(self, monitored_areas, crossing_line):
         if self._movie_file is None:
             return  # do nothing
         roi_image = self._image_frame.copy()
@@ -181,8 +182,9 @@ class ImageWidget(QWidget):
                 if monitored_area.is_roi_trackable(roi_index):
                     roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
                     cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
-                    mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int)
-                    cv2.line(roi_image, mid1, mid2, color=color)
+                    if CrossingBeamType.is_crossing_beam_needed(monitored_area.get_track_type(), crossing_line):
+                        mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
+                        cv2.line(roi_image, mid1, mid2, color=color)
         self._show_rois = True
         self._update_image_pixels_async(roi_image)
 

@@ -5,13 +5,13 @@ from functools import partial
 from pathlib import Path
 
 import os
-from PyQt5.QtCore import pyqtSlot, Qt, QDateTime, QObject, QTimer, QTime, pyqtSignal, QRect
+from PyQt5.QtCore import pyqtSlot, Qt, QDateTime, QObject, QTimer, QTime, pyqtSignal
 from PyQt5.QtWidgets import (QWidget, QPushButton, QHBoxLayout,
                              QLabel, QLineEdit, QGridLayout, QFileDialog, QVBoxLayout, QSpinBox, QComboBox,
                              QGroupBox, QCheckBox, QScrollArea, QDateTimeEdit, QMessageBox, QTextEdit)
 
 from pysolo_config import ConfigOptions, MonitoredAreaOptions
-from pysolo_video import MovieFile, process_image_frames, prepare_monitored_areas
+from pysolo_video import (MovieFile, CrossingBeamType, TrackingType, process_image_frames, prepare_monitored_areas)
 
 
 class CommonOptionsFormWidget(QWidget):
@@ -336,9 +336,9 @@ class MonitoredAreaFormWidget(QWidget):
 
         # track type
         self._track_type_choice = QComboBox()
-        self._track_type_choice.addItem('Distance', 0)
-        self._track_type_choice.addItem('Crossover', 1)
-        self._track_type_choice.addItem('Position', 2)
+        self._track_type_choice.addItem('Distance', TrackingType.distance)
+        self._track_type_choice.addItem('Crossover', TrackingType.beam_crossings)
+        self._track_type_choice.addItem('Position', TrackingType.position)
 
         # add track type control to the layout
         group_layout.addWidget(QLabel('Select Track Type'), current_layout_row, 0, 1, 1)
@@ -430,14 +430,19 @@ class MonitoredAreaFormWidget(QWidget):
 
     def _refresh_mask(self):
         if self._monitored_area.get_maskfile():
-            self._communication_channels.maskfile_signal.emit(self._monitored_area.get_maskfile())
+            if CrossingBeamType.is_crossing_beam_needed(self._monitored_area.get_track_type(),
+                                                        CrossingBeamType.based_on_roi_coord):
+                crossing_line = CrossingBeamType.based_on_roi_coord
+            else:
+                crossing_line = CrossingBeamType.no_crossing_beam
+            self._communication_channels.maskfile_signal.emit(self._monitored_area.get_maskfile(), crossing_line)
         else:
-            self._communication_channels.maskfile_signal.emit('')
+            self._communication_channels.maskfile_signal.emit('', CrossingBeamType.no_crossing_beam)
         self._communication_channels.refresh_display_signal.emit()
 
     def _update_track_type(self, index):
-        self._monitored_area.set_track_type(index)
         self._track_type_choice.setCurrentIndex(index)
+        self._monitored_area.set_track_type(self._track_type_choice.itemData(index).value)
         self._communication_channels.refresh_display_signal.emit()
 
     def _update_track_flag(self, val):
@@ -617,7 +622,7 @@ class TrackerWidget(QWidget):
             self._communication_channels.video_frame_pos_signal.emit(self._start_frame_msecs / 1000, 'seconds')
             if self._show_rois_during_tracking.checkState():
                 monitored_areas = prepare_monitored_areas(self._config)
-                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas)
+                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
         else:
             self._start_frame_msecs = -1
             self._communication_channels.video_frame_pos_signal.emit(0, 'seconds')
@@ -675,7 +680,7 @@ class TrackerWidget(QWidget):
                 self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
                 self._communication_channels.fly_coord_pos_signal.emit(fly_coords)
             if monitored_areas is not None and self._show_rois_during_tracking.checkState():
-                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas)
+                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
 
         def process_frames(tracker_status):
             update_frame_image(0, [], force_update=True)

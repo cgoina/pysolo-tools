@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (QPushButton, QLabel, QComboBox, QDialog, QGridLayou
                              QFileDialog, QCheckBox)
 
 from pysolo_maskmaker import create_mask, get_mask_params, get_mask_params_from_rois
-from pysolo_video import MonitoredArea
+from pysolo_video import MonitoredArea, CrossingBeamType
 
 
 class CreateMaskDlgWidget(QDialog):
@@ -34,8 +34,8 @@ class CreateMaskDlgWidget(QDialog):
 
         crossline_lbl = QLabel('Cross line type')
         self._crossline_choice = QComboBox()
-        self._crossline_choice.addItem('None', '')
-        self._crossline_choice.addItem('Horizontal', 'horizontal')
+        self._crossline_choice.addItem('None', CrossingBeamType.no_crossing_beam)
+        self._crossline_choice.addItem('Horizontal', CrossingBeamType.horizontal)
         layout.addWidget(crossline_lbl, current_widget_row, 0, 1, 3)
         layout.addWidget(self._crossline_choice, current_widget_row, 3, 1, 3)
         current_widget_row += 1
@@ -229,7 +229,7 @@ class CreateMaskDlgWidget(QDialog):
         n_rows = self._rows_box.value()
         n_cols = self._cols_box.value()
         arena = create_mask(n_rows, n_cols, mask_params)
-        self._communication_channels.monitored_area_rois_signal.emit(arena)
+        self._communication_channels.monitored_area_rois_signal.emit(arena, self._crossline_choice.currentData())
 
 
 def _text_to_float(s):
