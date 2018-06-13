@@ -40,7 +40,6 @@ class CreateMaskDlgWidget(QDialog):
         layout.addWidget(self._crossline_choice, current_widget_row, 3, 1, 3)
         current_widget_row += 1
 
-
         rows_lbl = QLabel('Rows')
         self._rows_box = QSpinBox()
         cols_lbl = QLabel('Cols')
@@ -113,7 +112,7 @@ class CreateMaskDlgWidget(QDialog):
         current_widget_row += 2
 
         self._overlay_check = QCheckBox()
-        self._overlay_check.setCheckState(True)
+        self._overlay_check.setChecked(True)
 
         layout.addWidget(self._overlay_check, current_widget_row, 0)
         layout.addWidget(QLabel('Overlay mask'), current_widget_row, 1)
@@ -142,6 +141,7 @@ class CreateMaskDlgWidget(QDialog):
         self.y_len_txt.textChanged.connect(self._update_mask_overlay)
         self.y_sep_txt.textChanged.connect(self._update_mask_overlay)
         self.y_tilt_txt.textChanged.connect(self._update_mask_overlay)
+        self._overlay_check.stateChanged.connect(self._update_mask_overlay)
 
         cancel_btn.clicked.connect(self.close)
         load_btn.clicked.connect(self._load_mask)
@@ -213,6 +213,9 @@ class CreateMaskDlgWidget(QDialog):
     def _update_mask_overlay(self):
         if self._overlay_check.checkState():
             self._draw_mask()
+        else:
+            # clear the mask
+            self._communication_channels.toggle_mask_signal.emit(False)
 
     def _draw_mask(self):
         mask_params = {

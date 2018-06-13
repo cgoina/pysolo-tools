@@ -409,7 +409,7 @@ class MonitoredAreaFormWidget(QWidget):
         self._communication_channels.monitored_area_options_signal.connect(self._update_monitored_area)
         self._communication_channels.tracker_running_signal.connect(self.setDisabled)
         # refresh mask
-        self._communication_channels.refresh_mask_signal.connect(self._refresh_mask)
+        self._communication_channels.toggle_mask_signal.connect(self._refresh_mask)
 
     def _select_mask_file(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog)
@@ -428,8 +428,9 @@ class MonitoredAreaFormWidget(QWidget):
             self._monitored_area.set_maskfile(None)
             self._mask_filename_txt.setText('')
 
-    def _refresh_mask(self):
-        if self._monitored_area.get_maskfile():
+    @pyqtSlot(bool)
+    def _refresh_mask(self, display_mask):
+        if self._monitored_area.get_maskfile() and display_mask:
             if CrossingBeamType.is_crossing_beam_needed(self._monitored_area.get_track_type(),
                                                         CrossingBeamType.based_on_roi_coord):
                 crossing_line = CrossingBeamType.based_on_roi_coord
@@ -619,13 +620,13 @@ class TrackerWidget(QWidget):
     def _update_start_time_in_secs(self, val):
         if val:
             self._start_frame_msecs = val * 1000
-            self._communication_channels.video_frame_pos_signal.emit(self._start_frame_msecs / 1000, 'seconds')
+            self._communication_channels.video_frame_pos_signal.emit(self._start_frame_msecs / 1000, self._start_frame_msecs / 1000, 'seconds')
             if self._show_rois_during_tracking.checkState():
                 monitored_areas = prepare_monitored_areas(self._config)
                 self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
         else:
             self._start_frame_msecs = -1
-            self._communication_channels.video_frame_pos_signal.emit(0, 'seconds')
+            self._communication_channels.video_frame_pos_signal.emit(0, 0, 'seconds')
 
     def _update_end_time_in_secs(self, val):
         if val:
@@ -675,20 +676,21 @@ class TrackerWidget(QWidget):
         self._timer.setInterval(500)
         self._timer.start()
 
-        def update_frame_image(frame_pos, fly_coords, force_update=False, monitored_areas=None):
-            if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
-                self._communication_channels.video_frame_pos_signal.emit(frame_pos, 'frames')
-                self._communication_channels.fly_coord_pos_signal.emit(fly_coords)
-            if monitored_areas is not None and self._show_rois_during_tracking.checkState():
-                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
+        def update_frame_image(frame_pos, frame_time_in_seconds, fly_coords, force_update=False, monitored_areas=None):
+            if not self._communication_channels.signalsBlocked():
+                if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
+                    self._communication_channels.video_frame_pos_signal.emit(frame_pos, frame_time_in_seconds, 'frames')
+                    self._communication_channels.fly_coord_pos_signal.emit(fly_coords)
+                if monitored_areas is not None and self._show_rois_during_tracking.checkState():
+                    self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
 
         def process_frames(tracker_status):
-            update_frame_image(0, [], force_update=True)
-
             image_source = MovieFile(self._config.get_source(),
                                      start_msecs=self._start_frame_msecs,
                                      end_msecs=self._end_frame_msecs,
                                      resolution=self._config.get_image_size())
+            start_frame_time = image_source.get_current_frame_time_in_seconds()
+            update_frame_image(0, 0 if start_frame_time is None else start_frame_time, [], force_update=True)
 
             if not image_source.is_opened():
                 QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.get_source())
@@ -750,7 +752,7 @@ class TrackerStatus(QObject):
         super(TrackerStatus, self).__init__()
         self._communication_channels = communication_channels
         self._running_flag = running_flag
-        self._communication_channels.tracker_running_signal.connect(self._set_running_flag)
+        self._communication_channels.tracker_running_signal.connect(self._set_running_flag, Qt.QueuedConnection)
 
     @pyqtSlot(bool)
     def _set_running_flag(self, flag):

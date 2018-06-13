@@ -21,7 +21,6 @@ class ImageWidget(QWidget):
         self._movie_file = None
         self._image_frame = None
         self._image_scale = None
-        self._show_rois = False
         self._ratio = image_width / image_height
         self._image_update_thread = QThread()
         self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels)
@@ -67,18 +66,18 @@ class ImageWidget(QWidget):
         self._communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
         self._communication_channels.maskfile_signal.connect(self._load_and_display_rois)
         self._communication_channels.monitored_area_rois_signal.connect(self._display_rois)
-        self._communication_channels.all_monitored_areas_rois_signal.connect(self._display_all_monitored_areas_rois)
+        self._communication_channels.all_monitored_areas_rois_signal.connect(self._display_all_monitored_areas_rois, Qt.QueuedConnection)
         self._communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
-        self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos)
+        self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos, Qt.QueuedConnection)
         self._communication_channels.video_image_resolution_signal.connect(self._set_movie_resolution)
 
     def _update_frame_sld_pos(self, value, update_frame=True):
         self._frame_sld.setValue(value)
         if update_frame: # check the flag in order to avoid recursion
-            self._update_frame_pos_in_secs(value)
+            self._update_frame_pos_in_secs(value, value, unit='seconds')
 
-    @pyqtSlot(float, str)
-    def _update_frame_pos_in_secs(self, frame_pos, unit='seconds'):
+    @pyqtSlot(float, float, str)
+    def _update_frame_pos_in_secs(self, frame_pos, frame_time, unit='seconds'):
         if self._movie_file is not None:
             if unit == 'frames':
                 frame = frame_pos
@@ -111,11 +110,11 @@ class ImageWidget(QWidget):
             self._frame_sld_widget.setVisible(False)
             self._image_frame = None
             self._video_frame.setPixmap(QPixmap.fromImage(QImage()))
-        self._communication_channels.video_frame_pos_signal.emit(0, 'frames')
+        self._communication_channels.video_frame_pos_signal.emit(0, 0, 'frames')
 
     def _set_image(self, image):
         self._image_frame = image
-        self._show_rois = False
+        self._communication_channels.mask_on_signal.emit(False)
         self._update_image_pixels_async(self._image_frame)
 
     def _update_image_pixels(self, image):
@@ -145,7 +144,8 @@ class ImageWidget(QWidget):
 
     @pyqtSlot(str, CrossingBeamType)
     def _load_and_display_rois(self, rois_mask_file, crossing_line):
-        if rois_mask_file and not self._show_rois:
+        if rois_mask_file:
+            # toggle the ROIs
             monitored_area = MonitoredArea()
             monitored_area.load_rois(rois_mask_file)
             self._display_rois(monitored_area, crossing_line)
@@ -166,9 +166,10 @@ class ImageWidget(QWidget):
                     if CrossingBeamType.is_crossing_beam_needed(monitored_area.get_track_type(), crossing_line):
                         mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
                         cv2.line(roi_image, mid1, mid2, color=color)
-            self._show_rois = True
+            self._communication_channels.mask_on_signal.emit(True)
         else:
-            self._show_rois = False
+            self._communication_channels.mask_on_signal.emit(False)
+
         self._update_image_pixels_async(roi_image)
 
     @pyqtSlot(list, CrossingBeamType)
@@ -185,7 +186,7 @@ class ImageWidget(QWidget):
                     if CrossingBeamType.is_crossing_beam_needed(monitored_area.get_track_type(), crossing_line):
                         mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
                         cv2.line(roi_image, mid1, mid2, color=color)
-        self._show_rois = True
+        self._communication_channels.mask_on_signal.emit(True)
         self._update_image_pixels_async(roi_image)
 
     @pyqtSlot(list)

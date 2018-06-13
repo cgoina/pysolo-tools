@@ -5,7 +5,7 @@ import os
 import sys
 from argparse import ArgumentParser
 
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtCore import pyqtSignal, QObject, pyqtSlot
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
                              QFileDialog, QAction, QMessageBox)
@@ -23,6 +23,7 @@ class PySoloMainAppWindow(QMainWindow):
         super(PySoloMainAppWindow, self).__init__(parent)
         self._communication_channels = WidgetCommunicationChannels()
         self._config = ConfigOptions()
+        self._display_mask = False
         self._init_ui()
 
     def _init_ui(self):
@@ -56,9 +57,9 @@ class PySoloMainAppWindow(QMainWindow):
         new_mask_act = QAction('New &mask', self)
         new_mask_act.triggered.connect(self._open_new_mask_dlg)
 
-        refresh_mask_act = QAction('&Mask ON/OFF', self)
-        refresh_mask_act.setShortcut('Ctrl+M')
-        refresh_mask_act.triggered.connect(self._refresh_mask)
+        toggle_mask_act = QAction('&Mask ON/OFF', self)
+        toggle_mask_act.setShortcut('Ctrl+M')
+        toggle_mask_act.triggered.connect(self._toggle_mask)
 
         file_menu.addAction(self._load_config_act)
         file_menu.addAction(save_config_act)
@@ -69,7 +70,7 @@ class PySoloMainAppWindow(QMainWindow):
         file_menu.addAction(exit_act)
 
         edit_menu.addAction(new_mask_act)
-        edit_menu.addAction(refresh_mask_act)
+        edit_menu.addAction(toggle_mask_act)
 
     def _init_widgets(self):
         image_widget = ImageWidget(self._communication_channels)
@@ -84,6 +85,7 @@ class PySoloMainAppWindow(QMainWindow):
 
     def _init_event_handlers(self):
         self._communication_channels.tracker_running_signal.connect(self._tracker_running_handler)
+        self._communication_channels.mask_on_signal.connect(self._set_mask_toggle)
 
     def closeEvent(self, event: QCloseEvent):
         not_ok_to_quit = False
@@ -102,10 +104,6 @@ class PySoloMainAppWindow(QMainWindow):
             # ok to quit
             event.accept()
 
-    def _tracker_running_handler(self, flag):
-        self._load_config_act.setDisabled(flag)
-        self._clear_config_act.setDisabled(flag)
-
     def _open_new_mask_dlg(self):
         mask_editor = CreateMaskDlgWidget(self._communication_channels)
         mask_editor.exec_()
@@ -113,8 +111,8 @@ class PySoloMainAppWindow(QMainWindow):
     def _quit(self):
         self.close()
 
-    def _refresh_mask(self):
-        self._communication_channels.refresh_mask_signal.emit()
+    def _toggle_mask(self):
+        self._communication_channels.toggle_mask_signal.emit(not self._display_mask)
 
     def _open_config(self):
         not_ok_for_new_config = False
@@ -186,6 +184,18 @@ class PySoloMainAppWindow(QMainWindow):
         self._update_status()
         self._config.reset_changed()
 
+    @pyqtSlot(bool)
+    def _set_mask_toggle(self, mask_on):
+        if mask_on:
+            self._display_mask = True
+        else:
+            self._display_mask = False
+
+    @pyqtSlot(bool)
+    def _tracker_running_handler(self, flag):
+        self._load_config_act.setDisabled(flag)
+        self._clear_config_act.setDisabled(flag)
+
 
 class WidgetCommunicationChannels(QObject):
     video_loaded_signal = pyqtSignal(MovieFile)
@@ -193,11 +203,12 @@ class WidgetCommunicationChannels(QObject):
     selected_area_signal = pyqtSignal(int)
     config_signal = pyqtSignal(ConfigOptions)
     monitored_area_options_signal = pyqtSignal(MonitoredAreaOptions)
-    refresh_mask_signal = pyqtSignal()
+    toggle_mask_signal = pyqtSignal(bool)
+    mask_on_signal = pyqtSignal(bool)
     maskfile_signal = pyqtSignal(str, CrossingBeamType)
     monitored_area_rois_signal = pyqtSignal(MonitoredArea, CrossingBeamType)
     all_monitored_areas_rois_signal = pyqtSignal(list, CrossingBeamType)
-    video_frame_pos_signal = pyqtSignal(float, str)
+    video_frame_pos_signal = pyqtSignal(float, float, str)
     video_image_resolution_signal = pyqtSignal(int, int)
     fly_coord_pos_signal = pyqtSignal(list)
     tracker_running_signal = pyqtSignal(bool)
