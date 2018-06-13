@@ -26,6 +26,7 @@ class CommonOptionsFormWidget(QWidget):
 
     def _init_ui(self):
         group_layout = QGridLayout()
+        group_layout.setVerticalSpacing(5)
 
         current_layout_row = 0
         # source file name widgets
@@ -322,6 +323,7 @@ class MonitoredAreaFormWidget(QWidget):
 
     def _init_ui(self):
         group_layout = QGridLayout()
+        group_layout.setVerticalSpacing(5)
 
         current_layout_row = 0
         # source file name widgets
@@ -538,6 +540,7 @@ class TrackerWidget(QWidget):
 
     def _init_ui(self):
         group_layout = QGridLayout()
+        group_layout.setVerticalSpacing(5)
 
         current_layout_row = 0
 
@@ -774,6 +777,8 @@ class FormWidget(QWidget):
 
     def _init_ui(self, communication_channels, config):
         grid_layout = QGridLayout()
+        grid_layout.setVerticalSpacing(5)
+
         commonOptionsFormWidget = CommonOptionsFormWidget(communication_channels, config)
         monitoredAreaFormWidget = MonitoredAreaFormWidget(communication_channels)
         trackerWidget = TrackerWidget(communication_channels, config)

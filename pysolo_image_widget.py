@@ -43,7 +43,7 @@ class ImageWidget(QWidget):
 
         self._frame_value_widget = QWidget()
         frame_value_layout = QGridLayout(self._frame_value_widget)
-        frame_value_layout.setVerticalSpacing(1)
+        frame_value_layout.setVerticalSpacing(5)
 
         current_frame_lbl = QLabel('Current frame:')
         self._current_frame_value_lbl = QLabel('0')
