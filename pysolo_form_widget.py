@@ -677,7 +677,7 @@ class TrackerWidget(QWidget):
         self._timer.start()
 
         def update_frame_image(frame_pos, frame_time_in_seconds, fly_coords, force_update=False, monitored_areas=None):
-            if not self._communication_channels.signalsBlocked():
+            if not self._communication_channels.lock.signalsBlocked():
                 if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
                     self._communication_channels.video_frame_pos_signal.emit(frame_pos, frame_time_in_seconds, 'frames')
                     self._communication_channels.fly_coord_pos_signal.emit(fly_coords)

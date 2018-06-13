@@ -23,9 +23,12 @@ class ImageWidget(QWidget):
         self._image_scale = None
         self._ratio = image_width / image_height
         self._image_update_thread = QThread()
-        self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels)
+        self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels, self._communication_channels)
+        self._opencv_thread = QThread()
+        self._opencv_worker = OpenCVWorker(self._draw_lines_on_image, self._communication_channels)
         self._init_ui()
         self._init_event_handlers()
+        self._opencv_thread.start()
         self._image_update_thread.start()
 
     def _init_ui(self):
@@ -177,15 +180,22 @@ class ImageWidget(QWidget):
         if self._movie_file is None:
             return  # do nothing
         roi_image = self._image_frame.copy()
-        color = [0, 255, 100]
+        polys_list = []
+        point_pairs_list = []
+        color = (0, 255, 100)
+        line_thickness = 1
+
         for monitored_area in monitored_areas:
             for roi_index, roi in enumerate(monitored_area.ROIS):
                 if monitored_area.is_roi_trackable(roi_index):
                     roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
-                    cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
+                    polys_list.append(roi_array)
                     if CrossingBeamType.is_crossing_beam_needed(monitored_area.get_track_type(), crossing_line):
                         mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
-                        cv2.line(roi_image, mid1, mid2, color=color)
+                        point_pairs_list.append((mid1, mid2))
+
+        self._draw_lines_on_image_async(roi_image, polys_list, point_pairs_list, color, line_thickness, None)
+
         self._communication_channels.mask_on_signal.emit(True)
         self._update_image_pixels_async(roi_image)
 
@@ -198,8 +208,10 @@ class ImageWidget(QWidget):
         """
         if self._image_frame is not None:
             image_frame = self._image_frame
+            polys_list = []
+            point_pairs_list = []
             color = (255, 10, 0)
-            width = 1
+            line_thickness = 1
             line_type = cv2.LINE_AA
 
             scalef = self._image_height / image_frame.shape[1]
@@ -215,21 +227,52 @@ class ImageWidget(QWidget):
                 b = (int(x), int(y + delta_y))
                 c = (int(x - delta_x), int(y))
                 d = (int(x + delta_x), int(y))
-                cv2.line(image_frame, a, b, color, width, line_type, 0)
-                cv2.line(image_frame, c, d, color, width, line_type, 0)
+                point_pairs_list.append((a, b))
+                point_pairs_list.append((c, d))
 
+            self._draw_lines_on_image_async(image_frame, polys_list, point_pairs_list, color, line_thickness, line_type)
             self._update_image_pixels_async(image_frame)
+
+    def _draw_lines_on_image(self, image, polys_list, point_pairs_list, color, thickness, line_type):
+        for poly in polys_list:
+            cv2.polylines(image, [poly], isClosed=True, color=color)
+        for point_pair in point_pairs_list:
+            cv2.line(image, point_pair[0], point_pair[1], color=color, thickness=thickness, lineType=line_type)
+
+    def _draw_lines_on_image_async(self, image, polys_list, point_pairs_list, color, thickness, line_type):
+        self._opencv_worker.moveToThread(self._opencv_thread)
+        self._opencv_worker.start.emit(image, polys_list, point_pairs_list, color, thickness, line_type)
 
 
 class ImageWidgetUpdateWorker(QObject):
 
     start = pyqtSignal(np.ndarray)
 
-    def __init__(self, function):
+    def __init__(self, function, communication_channels):
         super(ImageWidgetUpdateWorker, self).__init__()
         self._function = function
+        self._communication_channels = communication_channels
         self.start.connect(self.run)
 
     @pyqtSlot(np.ndarray)
     def run(self, image):
+        self._communication_channels.lock.blockSignals(True)
         self._function(image)
+        self._communication_channels.lock.blockSignals(False)
+
+
+class OpenCVWorker(QObject):
+
+    start = pyqtSignal(np.ndarray, list, list, tuple, int, int)
+
+    def __init__(self, function, communication_channels):
+        super(OpenCVWorker, self).__init__()
+        self._function = function
+        self._communication_channels = communication_channels
+        self.start.connect(self.run)
+
+    @pyqtSlot(np.ndarray, list, list, tuple, int, int)
+    def run(self, image, polys_list, point_pairs_list, color, thickness, line_type):
+        self._communication_channels.lock.blockSignals(True)
+        self._function(image, polys_list, point_pairs_list, color, thickness, line_type)
+        self._communication_channels.lock.blockSignals(False)

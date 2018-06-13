@@ -213,6 +213,7 @@ class WidgetCommunicationChannels(QObject):
     fly_coord_pos_signal = pyqtSignal(list)
     tracker_running_signal = pyqtSignal(bool)
     refresh_display_signal = pyqtSignal()
+    lock = QObject()
 
 
 def main():
