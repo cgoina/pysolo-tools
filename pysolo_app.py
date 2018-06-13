@@ -6,7 +6,7 @@ import os
 import sys
 
 from argparse import ArgumentParser
-from PyQt5.QtCore import pyqtSignal, QObject, pyqtSlot
+from PyQt5.QtCore import pyqtSignal, QObject, pyqtSlot, QDateTime
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
                              QFileDialog, QAction, QMessageBox)
@@ -212,6 +212,7 @@ class WidgetCommunicationChannels(QObject):
     video_frame_signal = pyqtSignal(int, float, np.ndarray)
     video_frame_time_signal = pyqtSignal(float)
     video_image_resolution_signal = pyqtSignal(int, int)
+    video_acq_time_signal = pyqtSignal(QDateTime)
     fly_coord_pos_signal = pyqtSignal(list)
     tracker_running_signal = pyqtSignal(bool)
     refresh_display_signal = pyqtSignal()

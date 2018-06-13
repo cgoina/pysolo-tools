@@ -158,6 +158,7 @@ class CommonOptionsFormWidget(QWidget):
     def _update_acq_time(self, acq_time):
         self._config.set_acq_time_from_str(acq_time.toString('yyyy-MM-dd HH:mm:ss'))
         self._acq_time_dt.setDateTime(acq_time)
+        self._communication_channels.video_acq_time_signal.emit(acq_time)
 
     def _select_results_dir(self):
         options = QFileDialog.Options(QFileDialog.DontUseNativeDialog | QFileDialog.ShowDirsOnly)
@@ -665,8 +666,8 @@ class TrackerWidget(QWidget):
 
     def _update_tracker_runtime(self):
         secs = self._start_time.elapsed() / 1000
-        mins = (secs / 60) % 60
         hours = (secs / 3600)
+        mins = (secs / 60) % 60
         secs = secs % 60
         self._timer_lbl.setText('Running for: %dh:%dm:%ds' % (hours, mins, secs))
 

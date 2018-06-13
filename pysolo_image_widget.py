@@ -1,12 +1,14 @@
 #!/usr/bin/env python
+from datetime import timedelta
+
 import cv2
 import numpy as np
 
 from functools import partial
 
-from PyQt5.QtCore import pyqtSlot, Qt, QThread, QObject, pyqtSignal, QRect
+from PyQt5.QtCore import pyqtSlot, Qt, QThread, QObject, pyqtSignal, QRect, QDateTime
 from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout)
+from PyQt5.QtWidgets import (QWidget, QLabel, QVBoxLayout, QSlider, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy)
 
 from pysolo_video import MovieFile, MonitoredArea, CrossingBeamType
 
@@ -21,6 +23,7 @@ class ImageWidget(QWidget):
         self._movie_file = None
         self._image_frame = None
         self._image_scale = None
+        self._movie_acq_time = None
         self._ratio = image_width / image_height
         self._image_update_thread = QThread()
         self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels, self._communication_channels)
@@ -38,27 +41,27 @@ class ImageWidget(QWidget):
         self._video_frame.setMinimumWidth(self._image_width)
         layout.addWidget(self._video_frame)
 
-        self._frame_sld_widget = QWidget()
-
-        frame_value_widget = QWidget()
-        frame_value_layout = QHBoxLayout(frame_value_widget)
+        self._frame_value_widget = QWidget()
+        frame_value_layout = QGridLayout(self._frame_value_widget)
+        frame_value_layout.setVerticalSpacing(1)
 
         current_frame_lbl = QLabel('Current frame:')
-
         self._current_frame_value_lbl = QLabel('0')
+        frame_value_layout.addWidget(current_frame_lbl, 0, 0)
+        frame_value_layout.addWidget(self._current_frame_value_lbl, 0, 1)
 
-        frame_value_layout.addWidget(current_frame_lbl)
-        frame_value_layout.addWidget(self._current_frame_value_lbl)
-
-        frame_sld_layout = QVBoxLayout(self._frame_sld_widget)
+        frame_acq_lbl = QLabel('Current frame acquisition time:')
+        self._current_frame_acq_value_lbl = QLabel('')
+        frame_value_layout.addWidget(frame_acq_lbl, 1, 0)
+        frame_value_layout.addWidget(self._current_frame_acq_value_lbl, 1, 1)
 
         self._frame_sld = QSlider(Qt.Horizontal, self)
+        frame_value_layout.addWidget(self._frame_sld, 2, 0, 1, 2)
+        vertical_spacer = QSpacerItem(10, 1, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        frame_value_layout.addItem(vertical_spacer, 3, 0, 1, 2)
 
-        frame_sld_layout.addWidget(frame_value_widget)
-        frame_sld_layout.addWidget(self._frame_sld)
-
-        self._frame_sld_widget.setVisible(False)
-        layout.addWidget(self._frame_sld_widget)
+        self._frame_value_widget.setVisible(False)
+        layout.addWidget(self._frame_value_widget)
 
         self.setLayout(layout)
 
@@ -74,15 +77,31 @@ class ImageWidget(QWidget):
         self._communication_channels.tracker_running_signal.connect(self._frame_sld.setDisabled)
         self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos, Qt.QueuedConnection)
         self._communication_channels.video_image_resolution_signal.connect(self._set_movie_resolution)
+        self._communication_channels.video_acq_time_signal.connect(self._set_movie_acq_time)
 
     def _update_frame_sld_pos(self, value, frame_index_param=None, update_frame_image=True):
         self._frame_sld.setValue(value)
+
+        # display frame index
         if frame_index_param is not None:
             frame_index = frame_index_param
         else:
             frame_index = int(value * self._movie_file.get_fps())
         self._current_frame_value_lbl.setText(str(frame_index))
-        if update_frame_image: # check the flag in order to avoid recursion
+
+        # display frame acquisition time
+        if self._movie_acq_time is not None:
+            frame_acq_time = self._movie_acq_time.toPyDateTime() + timedelta(seconds=value)
+            self._current_frame_acq_value_lbl.setText(frame_acq_time.strftime('%d-%b-%y %H:%M:%S'))
+        elif value > 0:
+            hours = (value / 3600)
+            mins = (value / 60) % 60
+            secs = value % 60
+            self._current_frame_acq_value_lbl.setText('%dh:%dm:%ds' % (hours, mins, secs))
+        else:
+            self._current_frame_acq_value_lbl.setText('')
+
+        if update_frame_image: # check the flag in order to avoid redundant calls
             image_exist, _, frame_image = self._movie_file.update_frame_index(frame_index)
             if image_exist:
                 self._set_image(frame_image)
@@ -96,7 +115,7 @@ class ImageWidget(QWidget):
     def _set_movie(self, movie_file):
         if movie_file is not None and movie_file.is_opened():
             self._movie_file = movie_file
-            self._frame_sld_widget.setVisible(True)
+            self._frame_value_widget.setVisible(True)
             self._frame_sld.setTickPosition(QSlider.TicksBelow)
             self._frame_sld.setTickInterval(self._movie_file.get_end_time_in_seconds() / self._image_width * 10)
             self._frame_sld.setMinimum(0)
@@ -105,7 +124,7 @@ class ImageWidget(QWidget):
             self._update_frame_sld_pos(0, update_frame_image=True)
         else:
             self._movie_file = None
-            self._frame_sld_widget.setVisible(False)
+            self._frame_value_widget.setVisible(False)
             self._image_frame = None
             self._video_frame.setPixmap(QPixmap.fromImage(QImage()))
 
@@ -138,6 +157,10 @@ class ImageWidget(QWidget):
         if self._movie_file is not None:
             self._movie_file.set_resolution(width, height)
             self._image_scale = self._movie_file.get_scale()
+
+    @pyqtSlot(QDateTime)
+    def _set_movie_acq_time(self, acq_time):
+        self._movie_acq_time = acq_time
 
     @pyqtSlot(str, CrossingBeamType)
     def _load_and_display_rois(self, rois_mask_file, crossing_line):
