@@ -557,9 +557,10 @@ class MovieFile(ImageSource):
     def __init__(self, movie_file_path, open_source=True, start_msecs=None, end_msecs=None, resolution=None):
         """
         :param movie_file_path: path to the movie file
-        :param step: distance between frames
-        :param start: start frame. If None starts at first
-        :param end: last frame. If None ends at last
+        :param open_source: flag that tells it whether to open the image source or not
+        :param start_msecs: start frame time in milliseconds. If None starts at first
+        :param end_msecs: last frame time in milliseconds. If None ends at last
+        :param resolution: video resolution
         """
 
         super(MovieFile, self).__init__(resolution=resolution)
@@ -793,7 +794,7 @@ def process_image_frames(image_source, monitored_areas,
                                    _next_monitored_area_roi(monitored_areas))
 
         if frame_callback:
-            frame_callback(frame_index, frame_time_pos, [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results])
+            frame_callback(frame_index, frame_time_pos, frame_image, [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results])
 
         def update_monitored_area_activity(monitored_area):
             monitored_area.update_frame_activity(frame_time_pos)
@@ -803,8 +804,8 @@ def process_image_frames(image_source, monitored_areas,
     if results is not None and frame_callback:
         frame_callback(frame_index,
                        frame_time_pos,
-                       [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results],
-                       force_update=True)
+                       frame_image,
+                       [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results])
 
     frame_time_pos = image_source.get_current_frame_time_in_seconds()
     _logger.info('Aggregate the remaining frames - frame time: %ds' % frame_time_pos)

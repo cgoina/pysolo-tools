@@ -64,7 +64,8 @@ class ImageWidget(QWidget):
 
     def _init_event_handlers(self):
         self._frame_sld.valueChanged[int].connect(self._update_frame_sld_pos)
-        self._communication_channels.video_frame_pos_signal.connect(self._update_frame_pos_in_secs)
+        self._communication_channels.video_frame_signal.connect(self._update_frame)
+        self._communication_channels.video_frame_time_signal.connect(self._update_frame_sld_pos)
         self._communication_channels.video_loaded_signal.connect(self._set_movie)
         self._communication_channels.clear_video_signal.connect(partial(self._set_movie, None))
         self._communication_channels.maskfile_signal.connect(self._load_and_display_rois)
@@ -74,26 +75,22 @@ class ImageWidget(QWidget):
         self._communication_channels.fly_coord_pos_signal.connect(self._draw_fly_pos, Qt.QueuedConnection)
         self._communication_channels.video_image_resolution_signal.connect(self._set_movie_resolution)
 
-    def _update_frame_sld_pos(self, value, update_frame=True):
+    def _update_frame_sld_pos(self, value, frame_index_param=None, update_frame_image=True):
         self._frame_sld.setValue(value)
-        if update_frame: # check the flag in order to avoid recursion
-            self._update_frame_pos_in_secs(value, value, unit='seconds')
-
-    @pyqtSlot(float, float, str)
-    def _update_frame_pos_in_secs(self, frame_pos, frame_time, unit='seconds'):
-        if self._movie_file is not None:
-            if unit == 'frames':
-                frame = frame_pos
-                sld_pos = int(self._movie_file.get_frame_time(frame_pos))
-            else:
-                # treat is seconds
-                frame = int(frame_pos * self._movie_file.get_fps())
-                sld_pos = frame_pos
-            self._update_frame_sld_pos(sld_pos, update_frame=False)
-            image_exist, _, image = self._movie_file.update_frame_index(frame)
+        if frame_index_param is not None:
+            frame_index = frame_index_param
+        else:
+            frame_index = int(value * self._movie_file.get_fps())
+        self._current_frame_value_lbl.setText(str(frame_index))
+        if update_frame_image: # check the flag in order to avoid recursion
+            image_exist, _, frame_image = self._movie_file.update_frame_index(frame_index)
             if image_exist:
-                self._current_frame_value_lbl.setText(str(sld_pos))
-                self._set_image(image)
+                self._set_image(frame_image)
+
+    @pyqtSlot(int, float, np.ndarray)
+    def _update_frame(self, frame_index, frame_time_in_seconds, frame_image):
+        self._update_frame_sld_pos(frame_time_in_seconds, frame_index_param=frame_index, update_frame_image=False)
+        self._set_image(frame_image)
 
     @pyqtSlot(MovieFile)
     def _set_movie(self, movie_file):
@@ -105,15 +102,12 @@ class ImageWidget(QWidget):
             self._frame_sld.setMinimum(0)
             self._frame_sld.setMaximum(int(self._movie_file.get_end_time_in_seconds()))
             self._image_scale = self._movie_file.get_scale()
-            image_found, _, image = self._movie_file.get_image()
-            if image_found:
-                self._set_image(image)
+            self._update_frame_sld_pos(0, update_frame_image=True)
         else:
             self._movie_file = None
             self._frame_sld_widget.setVisible(False)
             self._image_frame = None
             self._video_frame.setPixmap(QPixmap.fromImage(QImage()))
-        self._communication_channels.video_frame_pos_signal.emit(0, 0, 'frames')
 
     def _set_image(self, image):
         self._image_frame = image

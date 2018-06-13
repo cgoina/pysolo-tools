@@ -549,11 +549,13 @@ class TrackerWidget(QWidget):
         self._start_seconds_box = QSpinBox()
         self._start_seconds_box.setRange(0, 1000000000)
         self._start_seconds_box.setSpecialValueText(' ')
+        self._start_seconds_box.setCorrectionMode(QSpinBox.CorrectToNearestValue)
 
         end_frame_lbl = QLabel('End frame (in seconds)')
         self._end_seconds_box = QSpinBox()
         self._end_seconds_box.setRange(0, 1000000000)
         self._end_seconds_box.setSpecialValueText(' ')
+        self._end_seconds_box.setCorrectionMode(QSpinBox.CorrectToNearestValue)
 
         group_layout.addWidget(start_frame_lbl, current_layout_row, 0)
         group_layout.addWidget(self._start_seconds_box, current_layout_row + 1, 0)
@@ -601,8 +603,8 @@ class TrackerWidget(QWidget):
         self.setLayout(layout)
 
     def _init_event_handlers(self):
-        self._start_seconds_box.valueChanged.connect(self._update_start_time_in_secs)
-        self._end_seconds_box.valueChanged.connect(self._update_end_time_in_secs)
+        self._start_seconds_box.valueChanged[int].connect(self._update_start_time_in_secs)
+        self._end_seconds_box.valueChanged[int].connect(self._update_end_time_in_secs)
         self._refresh_interval_box.valueChanged.connect(self._update_refresh_rate)
         self._gaussian_kernel_size_box.valueChanged.connect(self._update_gaussian_kernel_size)
         # update config
@@ -617,18 +619,19 @@ class TrackerWidget(QWidget):
         self._start_btn.clicked.connect(self._start_tracker)
         self._cancel_btn.clicked.connect(self._stop_tracker)
 
-    def _update_start_time_in_secs(self, val):
+    def _update_start_time_in_secs(self, val: int):
         if val:
             self._start_frame_msecs = val * 1000
-            self._communication_channels.video_frame_pos_signal.emit(self._start_frame_msecs / 1000, self._start_frame_msecs / 1000, 'seconds')
+            self._communication_channels.video_frame_time_signal.emit(val)
             if self._show_rois_during_tracking.checkState():
                 monitored_areas = prepare_monitored_areas(self._config)
-                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
+                self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas,
+                                                                                  CrossingBeamType.based_on_roi_coord)
         else:
             self._start_frame_msecs = -1
-            self._communication_channels.video_frame_pos_signal.emit(0, 0, 'seconds')
+            self._communication_channels.video_frame_time_signal.emit(0)
 
-    def _update_end_time_in_secs(self, val):
+    def _update_end_time_in_secs(self, val: int):
         if val:
             self._end_frame_msecs = val * 1000
         else:
@@ -676,10 +679,10 @@ class TrackerWidget(QWidget):
         self._timer.setInterval(500)
         self._timer.start()
 
-        def update_frame_image(frame_pos, frame_time_in_seconds, fly_coords, force_update=False, monitored_areas=None):
-            if not self._communication_channels.lock.signalsBlocked():
-                if self._refresh_interval > 0 and frame_pos % self._refresh_interval == 0 or force_update:
-                    self._communication_channels.video_frame_pos_signal.emit(frame_pos, frame_time_in_seconds, 'frames')
+        def update_frame_image(frame_index, frame_time_in_seconds, frame_image, fly_coords, monitored_areas=None):
+            if not self._communication_channels.lock.signalsBlocked() and frame_image is not None:
+                if self._refresh_interval > 0 and frame_index % self._refresh_interval == 0:
+                    self._communication_channels.video_frame_signal.emit(frame_index, frame_time_in_seconds, frame_image)
                     self._communication_channels.fly_coord_pos_signal.emit(fly_coords)
                 if monitored_areas is not None and self._show_rois_during_tracking.checkState():
                     self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
@@ -690,7 +693,7 @@ class TrackerWidget(QWidget):
                                      end_msecs=self._end_frame_msecs,
                                      resolution=self._config.get_image_size())
             start_frame_time = image_source.get_current_frame_time_in_seconds()
-            update_frame_image(0, 0 if start_frame_time is None else start_frame_time, [], force_update=True)
+            self._communication_channels.video_frame_time_signal.emit(0 if start_frame_time is None else start_frame_time)
 
             if not image_source.is_opened():
                 QMessageBox.critical(self, 'Configuration errors', 'Error opening %s' % self._config.get_source())

@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 import logging.config
+import numpy as np
 import os
 import sys
-from argparse import ArgumentParser
 
+from argparse import ArgumentParser
 from PyQt5.QtCore import pyqtSignal, QObject, pyqtSlot
 from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QHBoxLayout,
@@ -208,7 +209,8 @@ class WidgetCommunicationChannels(QObject):
     maskfile_signal = pyqtSignal(str, CrossingBeamType)
     monitored_area_rois_signal = pyqtSignal(MonitoredArea, CrossingBeamType)
     all_monitored_areas_rois_signal = pyqtSignal(list, CrossingBeamType)
-    video_frame_pos_signal = pyqtSignal(float, float, str)
+    video_frame_signal = pyqtSignal(int, float, np.ndarray)
+    video_frame_time_signal = pyqtSignal(float)
     video_image_resolution_signal = pyqtSignal(int, int)
     fly_coord_pos_signal = pyqtSignal(list)
     tracker_running_signal = pyqtSignal(bool)
