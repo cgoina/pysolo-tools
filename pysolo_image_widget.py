@@ -178,14 +178,15 @@ class ImageWidget(QWidget):
             return  # do nothing
         roi_image = self._image_frame.copy()
         if monitored_area:
-            color = [0, 255, 100]
+            color = (128, 255, 0)
+            line_thickness = 2
             for roi_index, roi in enumerate(monitored_area.ROIS):
                 if monitored_area.is_roi_trackable(roi_index):
                     roi_array = np.array(monitored_area.roi_to_poly(roi, self._image_scale))
-                    cv2.polylines(roi_image, [roi_array], isClosed=True, color=color)
+                    cv2.polylines(roi_image, [roi_array], isClosed=True, color=color, thickness=line_thickness)
                     if CrossingBeamType.is_crossing_beam_needed(monitored_area.get_track_type(), crossing_line):
                         mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
-                        cv2.line(roi_image, mid1, mid2, color=color)
+                        cv2.line(roi_image, mid1, mid2, color=color, thickness=line_thickness)
             self._communication_channels.mask_on_signal.emit(True)
         else:
             self._communication_channels.mask_on_signal.emit(False)
@@ -199,8 +200,8 @@ class ImageWidget(QWidget):
         roi_image = self._image_frame.copy()
         polys_list = []
         point_pairs_list = []
-        color = (0, 255, 100)
-        line_thickness = 1
+        color = (128, 255, 0)
+        line_thickness = 2
 
         for monitored_area in monitored_areas:
             for roi_index, roi in enumerate(monitored_area.ROIS):
@@ -228,7 +229,7 @@ class ImageWidget(QWidget):
             polys_list = []
             point_pairs_list = []
             color = (255, 10, 0)
-            line_thickness = 1
+            line_thickness = 2
             line_type = cv2.LINE_AA
 
             scalef = self._image_height / image_frame.shape[1]
@@ -252,7 +253,7 @@ class ImageWidget(QWidget):
 
     def _draw_lines_on_image(self, image, polys_list, point_pairs_list, color, thickness, line_type):
         for poly in polys_list:
-            cv2.polylines(image, [poly], isClosed=True, color=color)
+            cv2.polylines(image, [poly], isClosed=True, color=color, thickness=thickness, lineType=line_type)
         for point_pair in point_pairs_list:
             cv2.line(image, point_pair[0], point_pair[1], color=color, thickness=thickness, lineType=line_type)
 
