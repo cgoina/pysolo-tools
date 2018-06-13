@@ -763,7 +763,7 @@ def prepare_monitored_areas(config, fps=1, results_suffix=''):
 def process_image_frames(image_source, monitored_areas,
                          gaussian_filter_size=(3, 3),
                          gaussian_sigma=0,
-                         moving_alpha=0.2,
+                         moving_alpha=0.1,
                          cancel_callback=None,
                          frame_callback=None,
                          mp_pool_size=1):
@@ -843,7 +843,7 @@ def _next_monitored_area_roi(monitored_areas):
 def _process_roi(image, monitored_area, roi, roi_index,
                  gaussian_filter_size=(3, 3),
                  gaussian_sigma=0,
-                 moving_alpha=0.2,
+                 moving_alpha=0.1,
                  scalef=(1, 1)):
     (roi_min_x, roi_min_y), (roi_max_x, roi_max_y) = monitored_area.roi_to_rect(roi, scalef)
 
