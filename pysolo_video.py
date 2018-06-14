@@ -31,6 +31,8 @@ class MonitoredArea():
     The class arena takes care of the flies
     """
 
+    ROIS_PER_MONITOR = 32
+
     def __init__(self,
                  track_type=1,
                  sleep_deprivation_flag=0,
@@ -97,13 +99,9 @@ class MonitoredArea():
     def is_roi_trackable(self, roi):
         return self._roi_filter is None or self._roi_filter == [] or roi in self._roi_filter
 
-    def set_output(self, filename, clear_if_exists=True):
+    def set_output(self, filename):
         self._lineno = 0
         self.output_filename = filename
-        if self.output_filename:
-            os.makedirs(dirname(self.output_filename), exist_ok=True)
-        if exists(self.output_filename) and clear_if_exists:
-            os.remove(self.output_filename)
 
     def add_fly_coords(self, roi_index, coords):
         """
@@ -134,6 +132,13 @@ class MonitoredArea():
         """
         ((x1, y1), (x2, y2)) = (p1, p2)
         return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+    def get_n_monitors(self):
+        n_rois = len(self.ROIS)
+        if n_rois % MonitoredArea.ROIS_PER_MONITOR > 0:
+            return int(n_rois / MonitoredArea.ROIS_PER_MONITOR + 1)
+        else:
+            return int(n_rois / MonitoredArea.ROIS_PER_MONITOR)
 
     def add_roi(self, roi, n_flies=1):
         self.ROIS.append(roi)
@@ -296,45 +301,65 @@ class MonitoredArea():
 
     def write_activity(self):
         if self.output_filename:
-            # monitor is active
-            active = '1'
-            # frames per seconds (FPS)
-            damscan = self._fps
-            # monitor with sleep deprivation capabilities?
-            sleep_deprivation = self._sleep_deprivation_flag * 1
-            # monitor number, not yet implemented
-            monitor = '0'
-            # unused
-            unused = 0
-            # is light on or off?
-            light = '0'  # changed to 0 from ? for compatability with SCAMP
-            # Expand the readings to 32 flies for compatibility reasons with trikinetics  - in our case 32 ROIs
-            # since there's only one fly / ROI
-            n_rois = len(self.ROIS)
-            if self._extend and n_rois < 32:
-                extension = 32 - n_rois
-            else:
-                extension = 0
+            n_monitors = self.get_n_monitors()
+            for mi in range(0, n_monitors):
+                self._write_activity_per_monitor(
+                    mi,
+                    self.output_filename.format(mi + 1),
+                    self._lineno,
+                    mi * MonitoredArea.ROIS_PER_MONITOR, (mi + 1) * MonitoredArea.ROIS_PER_MONITOR
+                )
+            self._lineno += len(self._tracking_data_buffer)
 
-            with open(self.output_filename, 'a') as ofh:
-                for a in self._tracking_data_buffer:
-                    self._lineno += 1
-                    # frame timestamp
-                    frame_dt = self._acq_time + timedelta(seconds=a.frame_time)
-
-                    if int(a.frame_time) == a.frame_time:
-                        time_fmt = '%d %b %y\t%H:%M:%S'
-                    else:
-                        time_fmt = '%d %b %y\t%H:%M:%S.%f'
-                    frame_dt_str = frame_dt.strftime(time_fmt)
-                    row_prefix = '%s\t' * 9 % (self._lineno, frame_dt_str,
-                                               active, damscan, self._track_type,
-                                               sleep_deprivation,
-                                               monitor, unused, light)
-                    ofh.write(row_prefix)
-                    ofh.write(a.format_values(extension))
-                    ofh.write('\n')
         self._reset_tracking_data_buffer()
+
+    def _write_activity_per_monitor(self, monitor_index, monitor_output, start_lineno, start_roi_index, end_roi_index):
+        """
+        Writes activity for the corresponding monitor
+        :param monitor_index: monitor index
+        :param monitor_output: monitor output file
+        :param start_roi_index: start roi index - inclusive
+        :param end_roi_index: end roi index - non-inclusive
+        :return:
+        """
+        # monitor is active
+        active = '1'
+        # frames per seconds (FPS)
+        damscan = self._fps
+        # monitor with sleep deprivation capabilities?
+        sleep_deprivation = self._sleep_deprivation_flag * 1
+        # monitor number
+        monitor = '{}'.format(monitor_index)
+        # unused
+        unused = 0
+        # is light on or off?
+        light = '0'  # changed to 0 from ? for compatability with SCAMP
+        # Expand the readings to up to the number of ROIs per monitor for compatibility reasons with trikinetics
+        n_monitor_rois = len(self.ROIS[start_roi_index:end_roi_index])
+        if self._extend and n_monitor_rois < MonitoredArea.ROIS_PER_MONITOR:
+            extension = MonitoredArea.ROIS_PER_MONITOR - n_monitor_rois
+        else:
+            extension = 0
+
+        current_lineno = start_lineno
+        with open(monitor_output, 'a') as ofh:
+            for activity in self._tracking_data_buffer:
+                current_lineno += 1
+                # frame timestamp
+                frame_dt = self._acq_time + timedelta(seconds=activity.frame_time)
+
+                if int(activity.frame_time) == activity.frame_time:
+                    time_fmt = '%d %b %y\t%H:%M:%S'
+                else:
+                    time_fmt = '%d %b %y\t%H:%M:%S.%f'
+                frame_dt_str = frame_dt.strftime(time_fmt)
+                row_prefix = '%s\t' * 9 % (current_lineno, frame_dt_str,
+                                           active, damscan, self._track_type,
+                                           sleep_deprivation,
+                                           monitor, unused, light)
+                ofh.write(row_prefix)
+                ofh.write(activity.format_values(start_roi_index, end_roi_index, extension))
+                ofh.write('\n')
 
     def _calculate_distances(self):
         """
@@ -462,11 +487,11 @@ class TrackingData():
     def combine_values(self, v1, v2):
         pass
 
-    def format_values(self, extended_regions):
+    def format_values(self, start, end, extended_regions):
         if extended_regions > 0:
-            return '\t'.join([str(v) for v in self.values] + ['0', ] * extended_regions)
+            return '\t'.join([str(v) for v in self.values[start:end]] + ['0', ] * extended_regions)
         else:
-            return '\t'.join([str(v) for v in self.values])
+            return '\t'.join([str(v) for v in self.values[start:end]])
 
 
 class VirtualBeamCrossings(TrackingData):
@@ -493,11 +518,13 @@ class AveragePosition(TrackingData):
                     self._n_values + tracking_data._n_values)
         self.values = new_values
 
-    def format_values(self, extended_regions):
+    def format_values(self, start, end, extended_regions):
         if extended_regions > 0:
-            return '\t'.join(['%s,%s' % (v[0], v[1]) for v in self.values] + ['0.0,0.0', ] * extended_regions)
+            return '\t'.join(['{},{}'.format(v[0], v[1])
+                              for v in self.values[start:end]] + ['0.0,0.0', ] * extended_regions)
         else:
-            return '\t'.join(['%s,%s' % (v[0], v[1]) for v in self.values])
+            return '\t'.join(['{},{}'.format(v[0], v[1])
+                              for v in self.values[start:end]])
 
 
 class ImageSource():
@@ -747,12 +774,31 @@ def prepare_monitored_areas(config, fps=1, results_suffix=''):
         ma_results_suffix = ma.get_results_suffix()
         if ma_results_suffix:
             ma_results_suffix = '-' + ma_results_suffix
-        ma.set_output(
-            os.path.join(config.get_data_folder(), 'Monitor%02d-%s%s.txt' % (
-                configured_area_index + 1,
-                ma.get_track_type_desc(),
-                ma_results_suffix))
+
+        n_monitors = ma.get_n_monitors()
+
+        if n_monitors > 1:
+            monitor_index_holder = '_{:02}'
+        else:
+            monitor_index_holder = ''
+        # the format is Monitor-<area>[_monitor]-<tracking type>[-<start-frame>-<end-frame>].txt
+        output_pattern = 'Monitor-{:02}{}-{}{}.txt'.format(
+            configured_area_index + 1,
+            monitor_index_holder,
+            ma.get_track_type_desc(),
+            ma_results_suffix
         )
+        output_dirname = config.get_data_folder()
+        fulloutput_pattern = os.path.join(output_dirname, output_pattern)
+
+        for monitor_index in range(0, n_monitors):
+            monitor_output_filename = fulloutput_pattern.format(monitor_index + 1)
+            if exists(monitor_output_filename):
+                os.remove(monitor_output_filename)
+
+        os.makedirs(output_dirname, exist_ok=True)
+
+        ma.set_output(fulloutput_pattern)
         return ma
 
     return [create_monitored_area(area_index, configured_area)
