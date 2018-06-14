@@ -863,7 +863,9 @@ def _process_roi(image, monitored_area, roi, roi_index,
     monitored_area.rois_background[roi_index] = roi_average
     roi_background = cv2.convertScaleAbs(roi_average)
 
-    roi_background_diff = cv2.subtract(roi_background, filtered_roi)  # subtract the background
+    # subtract the background - but instead of subtracting the background from the image
+    # we subtract the image from the background because the background has a higher intensity than the fly
+    roi_background_diff = cv2.subtract(roi_background, filtered_roi)
     roi_gray_diff = cv2.cvtColor(roi_background_diff, cv2.COLOR_BGR2GRAY)
     _, roi_binary = cv2.threshold(roi_gray_diff, 40, 255, cv2.THRESH_BINARY)
     roi_binary = cv2.dilate(roi_binary, None, iterations=2)
