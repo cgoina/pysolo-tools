@@ -25,13 +25,11 @@ class ImageWidget(QWidget):
         self._image_scale = None
         self._movie_acq_time = None
         self._ratio = image_width / image_height
-        self._image_update_thread = QThread()
-        self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels, self._communication_channels)
-        self._opencv_thread = QThread()
-        self._opencv_worker = OpenCVWorker(self._draw_lines_on_image, self._communication_channels)
         self._init_ui()
         self._init_event_handlers()
-        self._opencv_thread.start()
+        # initialize image refresher
+        self._image_update_thread = QThread()
+        self._image_update_worker = ImageWidgetUpdateWorker(self._update_image_pixels, self._communication_channels)
         self._image_update_thread.start()
 
     def _init_ui(self):
@@ -212,7 +210,7 @@ class ImageWidget(QWidget):
                         mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
                         point_pairs_list.append((mid1, mid2))
 
-        self._draw_lines_on_image_async(roi_image, polys_list, point_pairs_list, color, line_thickness, None)
+        self._draw_lines_on_image(roi_image, polys_list, point_pairs_list, color, line_thickness, None)
 
         self._communication_channels.mask_on_signal.emit(True)
         self._update_image_pixels_async(roi_image)
@@ -248,7 +246,7 @@ class ImageWidget(QWidget):
                 point_pairs_list.append((a, b))
                 point_pairs_list.append((c, d))
 
-            self._draw_lines_on_image_async(image_frame, polys_list, point_pairs_list, color, line_thickness, line_type)
+            self._draw_lines_on_image(image_frame, polys_list, point_pairs_list, color, line_thickness, line_type)
             self._update_image_pixels_async(image_frame)
 
     def _draw_lines_on_image(self, image, polys_list, point_pairs_list, color, thickness, line_type):
@@ -256,10 +254,6 @@ class ImageWidget(QWidget):
             cv2.polylines(image, [poly], isClosed=True, color=color, thickness=thickness, lineType=line_type)
         for point_pair in point_pairs_list:
             cv2.line(image, point_pair[0], point_pair[1], color=color, thickness=thickness, lineType=line_type)
-
-    def _draw_lines_on_image_async(self, image, polys_list, point_pairs_list, color, thickness, line_type):
-        self._opencv_worker.moveToThread(self._opencv_thread)
-        self._opencv_worker.start.emit(image, polys_list, point_pairs_list, color, thickness, line_type)
 
 
 class ImageWidgetUpdateWorker(QObject):
@@ -276,21 +270,4 @@ class ImageWidgetUpdateWorker(QObject):
     def run(self, image):
         self._communication_channels.lock.blockSignals(True)
         self._function(image)
-        self._communication_channels.lock.blockSignals(False)
-
-
-class OpenCVWorker(QObject):
-
-    start = pyqtSignal(np.ndarray, list, list, tuple, int, int)
-
-    def __init__(self, function, communication_channels):
-        super(OpenCVWorker, self).__init__()
-        self._function = function
-        self._communication_channels = communication_channels
-        self.start.connect(self.run)
-
-    @pyqtSlot(np.ndarray, list, list, tuple, int, int)
-    def run(self, image, polys_list, point_pairs_list, color, thickness, line_type):
-        self._communication_channels.lock.blockSignals(True)
-        self._function(image, polys_list, point_pairs_list, color, thickness, line_type)
         self._communication_channels.lock.blockSignals(False)
