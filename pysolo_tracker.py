@@ -64,7 +64,7 @@ def main():
             frame_interval = int((end_frame_pos - start_frame_pos) / args.nprocesses)
             tracker_args = [(config, s * 1000, (s + frame_interval) * 1000,
                              args.gaussian_filter_size, args.gaussian_filter_sigma,
-                             args.nthreads, _create_results_suffix(s, s + frame_interval)) for s in
+                             args.nthreads, _get_run_interval(s, s + frame_interval)[1]) for s in
                             range(start_frame_pos, end_frame_pos, frame_interval)
                             ]
             with Pool(args.nprocesses) as p:
@@ -76,16 +76,30 @@ def main():
         _logger.error('Config load error: %r' % errors)
 
 
-def _create_results_suffix(start_pos, end_pos):
-    start = '0' if start_pos is None or start_pos < 0 else '%d' % start_pos
-    end = 'end' if end_pos is None or end_pos < 0 else '%d' % end_pos
-    return start + '-' + end
+def _get_run_interval(start_pos, end_pos):
+
+    def start_suffix():
+        if start_pos is None or start_pos <= 0:
+            return False, '0'
+        else:
+            return True, '{}'.format(start_pos)
+
+    def end_suffix():
+        if end_pos is None or end_pos < 0:
+            return False, 'end'
+        else:
+            return True, '{}'.format(end_pos)
+
+    start = start_suffix()
+    end = end_suffix()
+    return start[0] or end[0], start[1] + '-' + end[1]
 
 
 def _run_tracker(config, start_pos_msecs, end_pos_msecs, gaussian_filter_size, gaussian_filter_sigma, nthreads,
                  results_suffix=''):
-    _logger.info('Run tracker for frames between %s' % (
-        results_suffix if results_suffix else _create_results_suffix(start_pos_msecs / 1000, end_pos_msecs / 1000)))
+    subinterval_defined, run_interval = _get_run_interval(start_pos_msecs / 1000, end_pos_msecs / 1000)
+    _logger.info('Run tracker for frames between {}'.format(run_interval))
+
     image_source = MovieFile(config.get_source(),
                              start_msecs=start_pos_msecs,
                              end_msecs=end_pos_msecs,
@@ -93,7 +107,13 @@ def _run_tracker(config, start_pos_msecs, end_pos_msecs, gaussian_filter_size, g
     if not image_source.is_opened():
         _logger.error('Error opening %s' % config.get_source())
     else:
-        monitored_areas = prepare_monitored_areas(config, fps=image_source.get_fps(), results_suffix=results_suffix)
+        if subinterval_defined:
+            output_suffix = results_suffix or run_interval
+        else:
+            output_suffix = results_suffix
+        monitored_areas = prepare_monitored_areas(config,
+                                                  fps=image_source.get_fps(),
+                                                  results_suffix=output_suffix)
         process_image_frames(image_source, monitored_areas,
                              gaussian_filter_size=(gaussian_filter_size, gaussian_filter_size),
                              gaussian_sigma=gaussian_filter_sigma,
