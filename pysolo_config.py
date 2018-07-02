@@ -148,6 +148,8 @@ class ConfigOptions:
             errors.append('Video source file %s does not exist' % self._source)
         if not self.get_data_folder():
             errors.append('Results directory is not set')
+        if not self.get_acq_time():
+            errors.append('Acquisition start time is not set')
         if not self.get_image_size():
             errors.append('Image size has not been set')
         if self.get_image_width() == 0:
