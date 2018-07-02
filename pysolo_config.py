@@ -141,11 +141,13 @@ class ConfigOptions:
 
     def validate_source(self):
         errors = []
-        if not self._source:
+        if not self.get_source():
             errors.append('Video source file is not defined')
         elif not os.path.exists(self._source):
             # file does not exist
             errors.append('Video source file %s does not exist' % self._source)
+        if not self.get_data_folder():
+            errors.append('Results directory is not set')
         if not self.get_image_size():
             errors.append('Image size has not been set')
         if self.get_image_width() == 0:
