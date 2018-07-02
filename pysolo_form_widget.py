@@ -613,6 +613,7 @@ class TrackerWidget(QWidget):
         self._gaussian_kernel_size_box.valueChanged.connect(self._update_gaussian_kernel_size)
         # update config
         self._communication_channels.config_signal.connect(self._update_config_options)
+        self._communication_channels.status_updated_signal.connect(self._validate_config)
         # update video file
         self._communication_channels.video_loaded_signal.connect(partial(self._update_movie, True))
         self._communication_channels.clear_video_signal.connect(partial(self._update_movie, False))
@@ -650,6 +651,9 @@ class TrackerWidget(QWidget):
     @pyqtSlot(ConfigOptions)
     def _update_config_options(self, new_config):
         self._config = new_config
+        self._validate_config()
+
+    def _validate_config(self):
         config_errors = self._config.validate()
         if len(config_errors) == 0:
             self.setDisabled(False)

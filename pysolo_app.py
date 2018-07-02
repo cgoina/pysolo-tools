@@ -151,6 +151,7 @@ class PySoloMainAppWindow(QMainWindow):
             self.statusBar().showMessage('Config file: %s' % self._config.get_config_filename())
         else:
             self.statusBar().showMessage('No config file')
+        self._communication_channels.status_updated_signal.emit()
 
     def _save_current_config(self):
         self._save_config(self._config.get_config_filename())
@@ -216,6 +217,7 @@ class WidgetCommunicationChannels(QObject):
     fly_coord_pos_signal = pyqtSignal(list)
     tracker_running_signal = pyqtSignal(bool)
     refresh_display_signal = pyqtSignal()
+    status_updated_signal = pyqtSignal()
     lock = QObject()
 
 
