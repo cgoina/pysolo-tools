@@ -210,7 +210,7 @@ class ImageWidget(QWidget):
                         mid1, mid2 = monitored_area.get_midline(roi, self._image_scale, conv=int, midline_type=crossing_line)
                         point_pairs_list.append((mid1, mid2))
 
-        self._draw_lines_on_image(roi_image, polys_list, point_pairs_list, color, line_thickness, None)
+        self._draw_lines_on_image(roi_image, polys_list, point_pairs_list, color, line_thickness, 2)
 
         self._communication_channels.mask_on_signal.emit(True)
         self._update_image_pixels_async(roi_image)
