@@ -4,11 +4,8 @@
 brew install caskroom/cask/miniconda
 conda create -n pysolo-tools python=3
 conda activate pysolo-tools
-conda install opencv
+conda install opencv=3.4
 conda install pyqt
-pip install --upgrade pip
-pip install opencv-python
-pip install opencv-contrib-python
 pip install multiprocess
 ```
 
