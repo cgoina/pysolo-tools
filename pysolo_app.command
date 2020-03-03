@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONDA_HOME=~/Tools/miniconda3
+CONDA_HOME=/usr/local/Caskroom/miniconda/base
 . ${CONDA_HOME}/etc/profile.d/conda.sh
 
 conda activate pysolo-tools
