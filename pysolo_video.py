@@ -840,7 +840,7 @@ def process_image_frames(image_source, monitored_areas,
                                    _next_monitored_area_roi(monitored_areas))
 
         if frame_callback:
-            frame_callback(frame_index, frame_time_pos, frame_image, [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results])
+            frame_callback(frame_index, frame_time_pos, frame_image, [(r[0][0] * image_scalef[0], r[0][1] * image_scalef[1]) for r in results if r])
 
         def update_monitored_area_activity(monitored_area):
             monitored_area.update_frame_activity(frame_time_pos)

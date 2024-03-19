@@ -8,6 +8,6 @@ set PATH=%CONDA_DIR%;%CONDA_DIR%\Scripts;%CONDA_DIR%\lib;%PATH%
 
 call activate pysolo-tools
 
-call python pysolo_app.py %*
+call python pysolo_tracker.py %*
 
 call conda.bat deactivate
