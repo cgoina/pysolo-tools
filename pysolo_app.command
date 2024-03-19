@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONDA_HOME=/usr/local/Caskroom/miniconda/base
+CONDA_HOME=/opt/homebrew/Caskroom/mambaforge/base
 . ${CONDA_HOME}/etc/profile.d/conda.sh
 
 conda activate pysolo-tools
