@@ -690,7 +690,7 @@ class TrackerWidget(QWidget):
         def update_frame_image(frame_index, frame_time_in_seconds, frame_image, fly_coords, monitored_areas=None):
             if not self._communication_channels.lock.signalsBlocked() and frame_image is not None:
                 if self._refresh_interval > 0 and frame_index % self._refresh_interval == 0:
-                    self._communication_channels.video_frame_signal.emit(frame_index, frame_time_in_seconds, frame_image)
+                    self._communication_channels.video_frame_signal.emit(frame_index, int(frame_time_in_seconds), frame_image)
                     self._communication_channels.fly_coord_pos_signal.emit(fly_coords)
                 if monitored_areas is not None and self._show_rois_during_tracking.checkState():
                     self._communication_channels.all_monitored_areas_rois_signal.emit(monitored_areas, CrossingBeamType.based_on_roi_coord)
@@ -700,7 +700,7 @@ class TrackerWidget(QWidget):
                                      start_msecs=self._start_frame_msecs,
                                      end_msecs=self._end_frame_msecs,
                                      resolution=self._config.get_image_size())
-            start_frame_time = image_source.get_current_frame_time_in_seconds()
+            start_frame_time = int(image_source.get_current_frame_time_in_seconds())
             self._communication_channels.video_frame_time_signal.emit(0 if start_frame_time is None else start_frame_time)
 
             if not image_source.is_opened():
