@@ -23,7 +23,7 @@ Or to minimize the number of packages updated during conda update use
 
      conda install conda=xx.xx.xx
 ```
-where `xx.xx.xx` is the latest conda version at the time you setup this environment. You can update to the latest conda if you want, but if you have conda>=24.1.2 you should be fine.
+where `xx.xx.xx` is the latest conda version at the time you setup this environment. You can update to the latest conda if you want, but if you have conda>=23.3.1 you should be fine.
 
 ### Running the application
 Before running the application the log directory must exist - python logger doesn't create
