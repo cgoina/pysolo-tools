@@ -210,7 +210,7 @@ class WidgetCommunicationChannels(QObject):
     maskfile_signal = pyqtSignal(str, CrossingBeamType)
     monitored_area_rois_signal = pyqtSignal(MonitoredArea, CrossingBeamType)
     all_monitored_areas_rois_signal = pyqtSignal(list, CrossingBeamType)
-    video_frame_signal = pyqtSignal(int, float, np.ndarray)
+    video_frame_signal = pyqtSignal(int, int, np.ndarray)
     video_frame_time_signal = pyqtSignal(float)
     video_image_resolution_signal = pyqtSignal(int, int)
     video_acq_time_signal = pyqtSignal(QDateTime)

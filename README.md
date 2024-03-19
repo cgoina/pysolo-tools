@@ -1,21 +1,29 @@
 ### Dev Environment
 
+Follow the conda install instructions from (here)[https://docs.conda.io/projects/conda/en/stable/]
+
+Create/Update a conda environment
+
+Create (if the environment does not exist at all) with:
 ```
-brew install caskroom/cask/miniconda
-conda create -n pysolo-tools python=3
-conda activate pysolo-tools
-conda install opencv
-conda install pyqt
-pip install --upgrade pip
-pip install opencv-python
-pip install opencv-contrib-python
-pip install multiprocess
+conda env create -n pysolo-tools -f conda-env.yml
+```
+Update (if the environment was created but not all packages were successfully installed) with:
+```
+conda env update -n pysolo-tools -f conda-env.yml
 ```
 
-On Scientific Linux to install miniconda use:
+If you have not downloaded the latest conda, you may see this message:
 ```
-wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh | sh
+Please update conda by running
+
+    $ conda update -n base -c conda-forge conda
+
+Or to minimize the number of packages updated during conda update use
+
+     conda install conda=xx.xx.xx
 ```
+where `xx.xx.xx` is the latest conda version at the time you setup this environment. You can update to the latest conda if you want, but if you have conda>=24.1.2 you should be fine.
 
 ### Running the application
 Before running the application the log directory must exist - python logger doesn't create

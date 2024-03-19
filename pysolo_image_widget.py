@@ -78,7 +78,7 @@ class ImageWidget(QWidget):
         self._communication_channels.video_acq_time_signal.connect(self._set_movie_acq_time)
 
     def _update_frame_sld_pos(self, value, frame_index_param=None, update_frame_image=True):
-        self._frame_sld.setValue(value)
+        self._frame_sld.setValue(int(value))
 
         # display frame index
         if frame_index_param is not None:
@@ -104,7 +104,7 @@ class ImageWidget(QWidget):
             if image_exist:
                 self._set_image(frame_image)
 
-    @pyqtSlot(int, float, np.ndarray)
+    @pyqtSlot(int, int, np.ndarray)
     def _update_frame(self, frame_index, frame_time_in_seconds, frame_image):
         self._update_frame_sld_pos(frame_time_in_seconds, frame_index_param=frame_index, update_frame_image=False)
         self._set_image(frame_image)
@@ -115,7 +115,7 @@ class ImageWidget(QWidget):
             self._movie_file = movie_file
             self._frame_value_widget.setVisible(True)
             self._frame_sld.setTickPosition(QSlider.TicksBelow)
-            self._frame_sld.setTickInterval(self._movie_file.get_end_time_in_seconds() / self._image_width * 10)
+            self._frame_sld.setTickInterval(int(self._movie_file.get_end_time_in_seconds() / self._image_width * 10))
             self._frame_sld.setMinimum(0)
             self._frame_sld.setMaximum(int(self._movie_file.get_end_time_in_seconds()))
             self._image_scale = self._movie_file.get_scale()

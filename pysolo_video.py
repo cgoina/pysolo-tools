@@ -73,11 +73,11 @@ class MonitoredArea():
         self._result_suffix = results_suffix
 
         # shape ( rois, (x, y) ) - contains the coordinates of the current frame per ROI
-        self._current_frame_fly_coord = np.zeros((1, 2), dtype=np.int)
+        self._current_frame_fly_coord = np.zeros((1, 2), dtype=np.uint32)
         # shape ( rois, self._aggregated_frames+1, (x, y) ) - contains the coordinates of the frames that
         # need to be aggregated.
         self._aggregated_frames_size = aggregated_frames_size + 1 if aggregated_frames_size > 0 else 2
-        self._aggregated_frames_fly_coord = np.zeros((1, self._aggregated_frames_size, 2), dtype=np.int)
+        self._aggregated_frames_fly_coord = np.zeros((1, self._aggregated_frames_size, 2), dtype=np.uint32)
         # the relative frame index from the last aggregation
         self._aggregated_frame_index = 0
         # index to the aggregated frames buffer - the reason for this is that if the number of aggregated frames is
@@ -231,10 +231,10 @@ class MonitoredArea():
         self._reset_aggregated_frames_buffers()
 
     def _reset_aggregated_frames_buffers(self):
-        self._aggregated_frames_fly_coord = np.zeros((len(self.ROIS), self._aggregated_frames_size, 2), dtype=np.int)
+        self._aggregated_frames_fly_coord = np.zeros((len(self.ROIS), self._aggregated_frames_size, 2), dtype=np.uint32)
 
     def _reset_current_frame_buffer(self):
-        self._current_frame_fly_coord = np.zeros((len(self.ROIS), 2), dtype=np.int)
+        self._current_frame_fly_coord = np.zeros((len(self.ROIS), 2), dtype=np.uint32)
 
     def _reset_tracking_data_buffer(self):
         self._tracking_data_buffer = []
@@ -382,7 +382,7 @@ class MonitoredArea():
             values = d[:, :nframes].sum(axis=1)
             self._shift_data_window(nframes)
         else:
-            values = np.zeros((len(self.ROIS)), dtype=np.int)
+            values = np.zeros((len(self.ROIS)), dtype=np.uint32)
 
         return values, nframes
 
@@ -393,7 +393,7 @@ class MonitoredArea():
         """
         nframes = self._aggregated_frames_buffer_index - 1
         # the values.shape is (nframes, nrois)),
-        values = np.zeros((len(self.ROIS)), dtype=np.int)
+        values = np.zeros((len(self.ROIS)), dtype=np.uint32)
         if nframes > 0:
             roi_index = 0
             for fd, md in zip(self._aggregated_frames_fly_coord, self._relative_beams()):
@@ -452,7 +452,7 @@ class MonitoredArea():
         x = fs[:, :self._aggregated_frames_buffer_index, 0]
         y = fs[:, :self._aggregated_frames_buffer_index, 1]
 
-        values = np.zeros((len(self.ROIS), 2), dtype=np.int)
+        values = np.zeros((len(self.ROIS), 2), dtype=np.uint32)
         # we average nframes, which is 1 less the the buffer's end so that we don't have duplication
         if nframes > 0:
             values[:, 0] = x[:, :nframes].mean(axis=1)
@@ -917,11 +917,11 @@ def _process_roi(image, monitored_area, roi, roi_index,
     roi_binary = cv2.dilate(roi_binary, None, iterations=2)
     roi_binary = cv2.erode(roi_binary, None, iterations=2)
 
-    fly_cnts = cv2.findContours(roi_binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    fly_cnts, _ = cv2.findContours(roi_binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
     fly_area = None
     fly_coords = None
-    for fly_contour in fly_cnts[1]:
+    for fly_contour in fly_cnts:
         fly_contour_moments = cv2.moments(fly_contour)
         area = fly_contour_moments['m00']
         if area > 0:

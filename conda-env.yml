@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy>=1.26
+  - opencv=4.9.0
+  - pyqt=5.15.9
+  - pip
+  - pip:
+    - opencv-contrib-python==4.9.0.80
+    - multiprocess
