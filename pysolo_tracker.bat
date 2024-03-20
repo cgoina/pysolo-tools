@@ -1,8 +1,9 @@
 @echo off
 
-rem for miniconda3 installed in the default user's directory use the path below
+rem for miniforge3 installed with default option for all users,
+rem use the path below
 rem otherwise set it to your miniconda install directory
-set CONDA_DIR=%HOMEPATH%\miniconda3
+set CONDA_DIR=C:\ProgramData\miniforge3
 
 set PATH=%CONDA_DIR%;%CONDA_DIR%\Scripts;%CONDA_DIR%\lib;%PATH%
 
