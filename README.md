@@ -1,29 +1,25 @@
 ### Dev Environment
 
-Follow the conda install instructions from (here)[https://docs.conda.io/projects/conda/en/stable/]
+* Download Miniforge installers from [github](https://github.com/conda-forge/miniforge) or conda if you prefer conda. For the conda installation you can find instructions [here](https://docs.conda.io/projects/conda/en/stable/). 
 
-Create/Update a conda environment
+* Initialize conda. Before running conda you must run `conda init` for windows or `source $CONDA_DIR/base/etc/profile.d/conda.sh` on unix like systems, where CONDA_DIR points to the location of the conda install directory.
 
-Create (if the environment does not exist at all) with:
+* Create/Update a conda environment. 
+
+    * If this is a new environment use:
 ```
 conda env create -n pysolo-tools -f conda-env.yml
 ```
-Update (if the environment was created but not all packages were successfully installed) with:
+
+    * If the environment already exists because you either created it manually or the above failed to install all packages use:
 ```
 conda env update -n pysolo-tools -f conda-env.yml
 ```
 
-If you have not downloaded the latest conda, you may see this message:
+* If the environment was created successfully activate it:
 ```
-Please update conda by running
-
-    $ conda update -n base -c conda-forge conda
-
-Or to minimize the number of packages updated during conda update use
-
-     conda install conda=xx.xx.xx
+conda activate pysolo-tools
 ```
-where `xx.xx.xx` is the latest conda version at the time you setup this environment. You can update to the latest conda if you want, but if you have conda>=23.3.1 you should be fine.
 
 ### Running the application
 Before running the application the log directory must exist - python logger doesn't create
